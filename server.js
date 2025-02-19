@@ -1,8 +1,10 @@
+const fs = require('fs');
 require('dotenv').config();
 const cors = require('cors');
 const express = require('express');
 const https = require('https');
 const nodemailer = require('nodemailer');
+const path = require('path'); // Add this import
 
 const app = express();
 const PORT = process.env.PORT || 8443; // Use environment variable or default to 8443
