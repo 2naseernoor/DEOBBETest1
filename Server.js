@@ -8,7 +8,7 @@ const https = require('https');
 const nodemailer = require('nodemailer');
 
 const app = express();
-const PORT = 8443; // HTTPS typically runs on port 443, but 8443 is often used for development
+const PORT = process.env.PORT || 8443; // Use environment variable or default to 8443
 
 // Load SSL certificate and key
 const sslOptions = {
