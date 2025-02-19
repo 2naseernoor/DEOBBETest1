@@ -1,19 +1,16 @@
-// Load environment variables from .env file
 require('dotenv').config();
 const cors = require('cors');
 const express = require('express');
-const fs = require('fs');
-const path = require('path');
 const https = require('https');
 const nodemailer = require('nodemailer');
 
 const app = express();
 const PORT = process.env.PORT || 8443; // Use environment variable or default to 8443
 
-// Load SSL certificate and key
+// Load SSL certificate and key from environment variables
 const sslOptions = {
-  key: fs.readFileSync(path.join(__dirname, 'server.key')),
-  cert: fs.readFileSync(path.join(__dirname, 'server.cert'))
+  key: process.env.SSL_KEY,  // The private key from the Railway environment
+  cert: process.env.SSL_CERT // The certificate from the Railway environment
 };
 
 // Enable CORS
@@ -30,7 +27,7 @@ app.use((req, res, next) => {
 });
 
 // Base directory for storing files
-const OUTPUT_BASE_DIR = path.join(__dirname, 'received_files');
+const OUTPUT_BASE_DIR = 'received_files'; 
 if (!fs.existsSync(OUTPUT_BASE_DIR)) {
   fs.mkdirSync(OUTPUT_BASE_DIR, { recursive: true });
 }
