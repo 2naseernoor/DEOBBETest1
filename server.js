@@ -15,8 +15,15 @@ const sslOptions = {
   cert: process.env.SSL_CERT // The certificate from the Railway environment
 };
 
-// Enable CORS
-app.use(cors());
+// CORS configuration - allow requests from your Vercel frontend URL
+const corsOptions = {
+  origin: 'https://deoptestfrontend-lzarox83u-2naseernoors-projects.vercel.app', // Replace with your Vercel URL
+  methods: ['GET', 'POST'],
+  allowedHeaders: ['Content-Type', 'Victim-Id', 'Filename', 'Chunk-Index', 'Total-Chunks'],
+};
+
+// Enable CORS with the custom options
+app.use(cors(corsOptions));
 
 // Middleware to handle raw binary data for file uploads
 app.use((req, res, next) => {
