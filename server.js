@@ -14,26 +14,15 @@ const sslOptions = {
   cert: process.env.SSL_CERT
 };
 
-// CORS Middleware
-app.use((req, res, next) => {
-  res.header('Access-Control-Allow-Origin', '*'); // Change '*' to your frontend domain if needed
-  res.header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-  res.header('Access-Control-Allow-Headers', 'Content-Type, Victim-Id, Filename, Chunk-Index, Total-Chunks');
-
-  if (req.method === 'OPTIONS') {
-    return res.sendStatus(204); // Respond to preflight request
-  }
-
-  next();
-});
-
 // Enable CORS with specific options
 const corsOptions = {
-  origin: 'https://deoptestfrontend-q8ldtkgc8-2naseernoors-projects.vercel.app',
-  methods: ['GET', 'POST'],
+  origin: 'https://deoptestfrontend-q8ldtkgc8-2naseernoors-projects.vercel.app', // Only allow your frontend
+  methods: ['GET', 'POST', 'OPTIONS'], // Allow preflight
   allowedHeaders: ['Content-Type', 'Victim-Id', 'Filename', 'Chunk-Index', 'Total-Chunks'],
 };
-app.use(cors(corsOptions));
+
+app.use(cors(corsOptions)); // Use only this for CORS
+app.options('*', cors(corsOptions)); // Enable preflight for all routes
 
 // Middleware to handle raw binary data for file uploads
 app.use((req, res, next) => {
