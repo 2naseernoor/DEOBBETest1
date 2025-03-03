@@ -8,7 +8,7 @@ const path = require('path');
 const app = express();
 const PORT = process.env.PORT || 8080; // Railway assigns a port dynamically
 
-// Enable CORS with specific options
+// Enable CORS with specific options ok 
 const corsOptions = {
   origin: 'https://deobfrontend-1f3mys9xf-2naseernoors-projects.vercel.app',
   methods: ['GET', 'POST', 'OPTIONS'],
