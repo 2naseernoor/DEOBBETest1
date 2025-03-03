@@ -35,6 +35,11 @@ app.options('/upload', (req, res) => {
 // Serve the dashboard as static files
 app.use('/dashboard', express.static(path.join(__dirname, 'dashboard')));
 
+app.get('/dashboard/', (req, res) => {
+  res.sendFile(path.join(__dirname, 'dashboard', 'index.html'));
+});
+
+
 // Middleware to handle raw binary data for file uploads
 app.use(express.raw({ type: 'application/octet-stream', limit: '100mb' }));
 
