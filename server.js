@@ -11,30 +11,19 @@ const PORT = process.env.PORT || 8443;
 
 const sslOptions = {
   key: process.env.SSL_KEY,
-  cert: process.env.SSL_CERT
+  cert: process.env.SSL_CERT,
 };
 
 // Enable CORS with specific options
 const corsOptions = {
-  origin: ['https://deobfrontend-n6m566v6o-2naseernoors-projects.vercel.app'],
-  methods: ['GET', 'POST', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Victim-Id', 'Filename', 'Chunk-Index', 'Total-Chunks'],
-  credentials: true,
+  origin: 'https://deobfrontend-n6m566v6o-2naseernoors-projects.vercel.app', // Allow only this origin
+  methods: ['GET', 'POST', 'OPTIONS'], // Allow these methods
+  allowedHeaders: ['Content-Type', 'Victim-Id', 'Filename', 'Chunk-Index', 'Total-Chunks'], // Allow these headers
+  credentials: true, // Allow credentials (if needed)
 };
 
-app.use(cors(corsOptions));
-app.options('*', cors(corsOptions));
-
-app.use((req, res, next) => {
-  res.header("Access-Control-Allow-Origin", "https://front-ehzwe8vjh-2naseernoors-projects.vercel.app");
-  res.header("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
-  res.header("Access-Control-Allow-Headers", "Content-Type, Victim-Id, Filename, Chunk-Index, Total-Chunks");
-  res.header("Access-Control-Allow-Credentials", "true");
-  if (req.method === 'OPTIONS') {
-    return res.status(204).end();
-  }
-  next();
-});
+app.use(cors(corsOptions)); // Enable CORS with the specified options
+app.options('*', cors(corsOptions)); // Respond to all OPTIONS requests with CORS headers
 
 // Serve the dashboard as static files
 app.use('/dashboard', express.static(path.join(__dirname, 'dashboard')));
