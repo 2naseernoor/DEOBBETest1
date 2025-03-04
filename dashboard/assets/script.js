@@ -47,7 +47,7 @@ $(document).ready(function() {
     };
   
     // Fetch data every 5 seconds to keep the dashboard updated
-    setInterval(fetchData, 5000);
+    setInterval(fetchData, 30000);
   
     // Fetch data immediately when the page loads
     fetchData();
