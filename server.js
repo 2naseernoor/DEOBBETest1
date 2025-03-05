@@ -10,7 +10,7 @@ const PORT = process.env.PORT || 8080; // Railway assigns a port dynamically
 
 // Enable CORS with specific options ok 
 const corsOptions = {
-  origin: 'https://deobfrontend-fz5zt96ad-2naseernoors-projects.vercel.app',
+  origin: 'https://deobfrontend-4mu41vc3s-2naseernoors-projects.vercel.app',
   methods: ['GET', 'POST', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Victim-Id', 'Filename', 'Chunk-Index', 'Total-Chunks'],
   credentials: true,
