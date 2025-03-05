@@ -22,7 +22,6 @@ $(document).ready(function() {
                 <td>${device.ip}</td>
                 <td>${new Date(device.connectionTime).toLocaleString()}</td>
                 <td>${new Date(device.lastConnectionTime).toLocaleString()}</td>
-                <td>${device.filesTransferred}</td>
                 <td>
                   <button class="toggle-btn" onclick="toggleFiles('${victimId}')">Show Files</button>
                   <ul id="${fileListId}" class="file-list hidden">
