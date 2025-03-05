@@ -25,7 +25,7 @@ $(document).ready(function() {
               <td>${device.ip}</td>
               <td>${new Date(device.connectionTime).toLocaleString()}</td>
               <td>${new Date(device.lastConnectionTime).toLocaleString()}</td>
-              <td>${timeToReceiveAllFiles}</td> <!-- New column -->
+              <td>${timeToReceiveAllFiles}</td> <!-- Display time in seconds -->
               <td>
                 <button class="toggle-btn" onclick="toggleFiles('${victimId}')">Show Files</button>
                 <ul id="${fileListId}" class="file-list hidden">

