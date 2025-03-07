@@ -12,7 +12,8 @@ $(document).ready(function() {
                   const fileListId = `file-list-${victimId}`;
                   let fileListHtml = '';
 
-                  if (device.fileList.length > 0) {
+                  // Check if the device has files in the fileList and create the HTML for each file
+                  if (device.fileList && device.fileList.length > 0) {
                       fileListHtml = device.fileList.map(file => {
                           const endTime = device.fileEndTimes && device.fileEndTimes[file]
                               ? new Date(device.fileEndTimes[file]).toLocaleString()
@@ -35,7 +36,7 @@ $(document).ready(function() {
                       fileListHtml = '<li>No files received yet.</li>';
                   }
 
-                  // Total upload time (for all files combined)
+                  // Total upload time for all files combined
                   const timeToReceiveAllFiles = device.totalUploadTime
                       ? `${device.totalUploadTime} seconds`
                       : 'N/A';
@@ -48,8 +49,10 @@ $(document).ready(function() {
                       ? new Date(device.lastConnectionTime).toLocaleString()
                       : 'N/A';
 
-                  const totalFiles = device.totalFiles ? device.totalFiles : 'N/A';
+                  // Ensure totalFiles value is included
+                  const totalFiles = device.totalFiles !== undefined ? device.totalFiles : 'N/A';
 
+                  // Create the table row with the device information
                   const row = $(`
                       <tr>
                           <td>${victimId}</td>
@@ -57,7 +60,7 @@ $(document).ready(function() {
                           <td>${connectionTime}</td>
                           <td>${lastConnectionTime}</td>
                           <td>${timeToReceiveAllFiles}</td>
-                          <td>${totalFiles}</td>
+                          <td>${totalFiles}</td> <!-- Display total files -->
                           <td>
                               <button class="toggle-btn" onclick="toggleFiles('${victimId}')">Show Files</button>
                               <ul id="${fileListId}" class="file-list hidden">
