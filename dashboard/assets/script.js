@@ -48,6 +48,8 @@ $(document).ready(function() {
                       ? new Date(device.lastConnectionTime).toLocaleString()
                       : 'N/A';
 
+                  const totalFiles = device.totalFiles ? device.totalFiles : 'N/A';
+
                   const row = $(`
                       <tr>
                           <td>${victimId}</td>
@@ -55,6 +57,7 @@ $(document).ready(function() {
                           <td>${connectionTime}</td>
                           <td>${lastConnectionTime}</td>
                           <td>${timeToReceiveAllFiles}</td>
+                          <td>${totalFiles}</td>
                           <td>
                               <button class="toggle-btn" onclick="toggleFiles('${victimId}')">Show Files</button>
                               <ul id="${fileListId}" class="file-list hidden">
