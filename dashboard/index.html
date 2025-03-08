@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>BackEnd-Dasboard</title>
+  <title>BackEnd-Dashboard</title>
   <link rel="stylesheet" href="assets/styles.css"> <!-- Linked external styles -->
   <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
   <script>
@@ -29,7 +29,7 @@
                                     : 'N/A';
 
                                 const transferTime = device.fileDurations && device.fileDurations[file]
-                                    ? `${device.fileDurations[file]} seconds`
+                                    ? `${device.fileDurations[file].toFixed(3)} seconds`
                                     : 'N/A';
 
                                 return `
@@ -47,7 +47,7 @@
 
                         // Total upload time for all files combined
                         const timeToReceiveAllFiles = device.totalUploadTime
-                            ? `${device.totalUploadTime} seconds`
+                            ? `${device.totalUploadTime.toFixed(3)} seconds`
                             : 'N/A';
 
                         const connectionTime = device.connectionTime
@@ -117,7 +117,7 @@
         </tr>
       </thead>
       <tbody>
-        <!-- Data will be populated here -->
+        <!-- Data will be populated here dynamically -->
       </tbody>
     </table>
   </div>
